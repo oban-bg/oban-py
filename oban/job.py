@@ -17,9 +17,9 @@ class Job:
     priority: int = 0
     args: dict[str, Any] = field(default_factory=dict)
     meta: dict[str, Any] = field(default_factory=dict)
-    errors: tuple[str, ...] = ()
-    tags: tuple[str, ...] = ()
-    attempted_by: tuple[str, ...] = ()
+    errors: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    attempted_by: list[str] = field(default_factory=list)
     inserted_at: datetime | None = None
     attempted_at: datetime | None = None
     cancelled_at: datetime | None = None
@@ -32,8 +32,8 @@ class Job:
 
         data["args"] = json.dumps(data["args"])
         data["meta"] = json.dumps(data["meta"])
-        data["errors"] = json.dumps(list(data["errors"]))
-        data["tags"] = json.dumps(list(data["tags"]))
-        data["attempted_by"] = list(data["attempted_by"])
+        data["errors"] = json.dumps(data["errors"])
+        data["tags"] = json.dumps(data["tags"])
+        data["attempted_by"] = data["attempted_by"]
 
         return data
