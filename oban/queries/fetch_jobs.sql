@@ -18,4 +18,4 @@ FROM
 WHERE
   oban_jobs.id = locked_jobs.id
 RETURNING
-  oban_jobs.*;
+  oban_jobs.*

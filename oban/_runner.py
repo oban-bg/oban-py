@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
@@ -22,19 +21,18 @@ class Runner:
         oban: Oban,
         queue: str = "default",
         limit: int = 10,
-        poll_interval: float = 0.1,
     ) -> None:
         self._oban = oban
         self._queue = queue
         self._limit = limit
-        self._poll_interval = poll_interval
 
         self._executor = ThreadPoolExecutor(
-            max_workers=limit, thread_name_prefix="oban-job"
+            max_workers=limit, thread_name_prefix=f"oban-{queue}"
         )
         self._stop_event = threading.Event()
+        self._work_available = threading.Event()
         self._poller = threading.Thread(
-            target=self._poll_loop, name="oban-poller", daemon=True
+            target=self._poll_loop, name=f"oban-runner-{queue}", daemon=True
         )
 
     def start(self) -> None:
@@ -42,11 +40,23 @@ class Runner:
 
     def stop(self) -> None:
         self._stop_event.set()
+        self._work_available.set()  # Wake up the thread
         self._poller.join()
         self._executor.shutdown(wait=True)
 
+    def notify(self) -> None:
+        """Called by stager when work is available for this queue."""
+        self._work_available.set()
+
     def _poll_loop(self) -> None:
         while not self._stop_event.is_set():
+            # Wait for notification from stager
+            self._work_available.wait(timeout=5.0)
+            self._work_available.clear()
+
+            if self._stop_event.is_set():
+                break
+
             try:
                 with self._oban.get_connection() as conn:
                     # TODO: Pass the current instance/uuid information through
@@ -62,8 +72,6 @@ class Runner:
             except Exception:
                 if self._stop_event.is_set():
                     break
-
-            time.sleep(self._poll_interval)
 
     # TODO: Log something useful when this is instrumented
     def _handle_execution_exception(self, future: Future[None]) -> None:

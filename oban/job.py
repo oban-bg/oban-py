@@ -1,12 +1,21 @@
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .types import JobState
 
+TIMESTAMP_FIELDS = [
+    "inserted_at",
+    "attempted_at",
+    "cancelled_at",
+    "completed_at",
+    "discarded_at",
+    "scheduled_at",
+]
 
-@dataclass(slots=True, frozen=True)
+
+@dataclass(slots=True)
 class Job:
     worker: str
     id: int | None = None
@@ -27,6 +36,10 @@ class Job:
     discarded_at: datetime | None = None
     scheduled_at: datetime | None = None
 
+    def __post_init__(self):
+        if self.state == "available" and self.scheduled_at is not None:
+            self.state = "scheduled"
+
     def to_dict(self) -> dict:
         data = asdict(self)
 
@@ -35,5 +48,12 @@ class Job:
         data["errors"] = json.dumps(data["errors"])
         data["tags"] = json.dumps(data["tags"])
         data["attempted_by"] = data["attempted_by"]
+
+        # Ensure timestamps are written as UTC rather than being implicitly cast to the current
+        # timezone. The database uses `TIMESTAMP WITHOUT TIME ZONE` and the value is automatically
+        # shifted when the zone is present.
+        for key in TIMESTAMP_FIELDS:
+            if data[key] is not None and data[key].tzinfo is not None:
+                data[key] = data[key].astimezone(timezone.utc).replace(tzinfo=None)
 
         return data

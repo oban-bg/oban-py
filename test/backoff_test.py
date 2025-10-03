@@ -1,5 +1,3 @@
-import pytest
-
 from oban._backoff import exponential, jitter, jittery_clamped
 
 

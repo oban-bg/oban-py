@@ -41,12 +41,12 @@ with psycopg.connect(template_url) as conn:
             tags JSONB NOT NULL DEFAULT '[]',
             errors JSONB NOT NULL DEFAULT '[]',
             attempted_by TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-            inserted_at TIMESTAMP NOT NULL DEFAULT timezone('UTC', now()),
-            scheduled_at TIMESTAMP NOT NULL DEFAULT timezone('UTC', now()),
-            attempted_at TIMESTAMP,
-            cancelled_at TIMESTAMP,
-            completed_at TIMESTAMP,
-            discarded_at TIMESTAMP,
+            inserted_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT timezone('UTC', now()),
+            scheduled_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT timezone('UTC', now()),
+            attempted_at TIMESTAMP WITHOUT TIME ZONE,
+            cancelled_at TIMESTAMP WITHOUT TIME ZONE,
+            completed_at TIMESTAMP WITHOUT TIME ZONE,
+            discarded_at TIMESTAMP WITHOUT TIME ZONE,
             CONSTRAINT attempt_range CHECK (attempt >= 0 AND attempt <= max_attempts),
             CONSTRAINT queue_length CHECK (char_length(queue) > 0),
             CONSTRAINT worker_length CHECK (char_length(worker) > 0),
@@ -66,8 +66,8 @@ with psycopg.connect(template_url) as conn:
         CREATE TABLE oban_peers (
             name TEXT PRIMARY KEY,
             node TEXT NOT NULL,
-            started_at TIMESTAMP NOT NULL,
-            expires_at TIMESTAMP NOT NULL
+            started_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+            expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL
         )
     """)
 

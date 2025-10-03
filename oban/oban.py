@@ -1,32 +1,57 @@
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Type, Union
+from __future__ import annotations
+
+from typing import Any, Callable, Type
 from psycopg_pool import ConnectionPool
 
 from . import _query
 from .job import Job
 from ._runner import Runner
+from ._stager import Stager
 from ._worker import worker
 
 
-@dataclass
 class Oban:
-    pool: Union[Dict[str, Any], ConnectionPool]
-    queues: Dict[str, int] = field(default_factory=dict)
+    def __init__(
+        self,
+        *,
+        pool: dict[str, Any] | ConnectionPool,
+        queues: dict[str, int] | None = None,
+        stage_interval: float = 1.0,
+    ) -> None:
+        """Initialize an Oban instance.
 
-    def __post_init__(self):
-        """Validate configuration after initialization."""
-        for queue_name, limit in self.queues.items():
+        Args:
+            pool: Database connection pool or configuration dict with 'url' key
+            queues: Queue names mapped to worker limits (default: {})
+            stage_interval: How often to stage scheduled jobs in seconds (default: 1.0)
+        """
+        queues = queues or {}
+
+        for queue, limit in queues.items():
             if limit < 1:
-                raise ValueError(f"Queue '{queue_name}' limit must be positive")
+                raise ValueError(f"Queue '{queue}' limit must be positive")
 
-        if isinstance(self.pool, dict):
-            if "url" not in self.pool:
+        if stage_interval <= 0:
+            raise ValueError("stage_interval must be positive")
+
+        if isinstance(pool, dict):
+            if "url" not in pool:
                 raise ValueError("Pool configuration must include 'url'")
 
-            self.pool["conninfo"] = self.pool.pop("url")
-            self.pool["open"] = False
+            pool["conninfo"] = pool.pop("url")
+            pool["open"] = False
+            self._pool = ConnectionPool(**pool)
+        else:
+            self._pool = pool
 
-            self.pool = ConnectionPool(**self.pool)
+        self._runners = {
+            queue: Runner(oban=self, queue=queue, limit=limit)
+            for queue, limit in queues.items()
+        }
+
+        self._stager = Stager(
+            oban=self, runners=self._runners, stage_interval=stage_interval
+        )
 
     def worker(self, **overrides) -> Callable[[Type], Type]:
         """Create a worker decorator for this Oban instance.
@@ -81,24 +106,27 @@ class Oban:
         """
         return worker(oban=self, **overrides)
 
-    def start(self):
-        self.pool.open()
+    def start(self) -> Oban:
+        self._pool.open()
 
-        # NOTE: Faking this for a single queue at first
-        self._runner = Runner(oban=self, queue="default", limit=10)
-        self._runner.start()
+        for runner in self._runners.values():
+            runner.start()
+
+        self._stager.start()
 
         return self
 
-    def stop(self):
-        self._runner.stop()
-        self.pool.close()
+    def stop(self) -> None:
+        self._stager.stop()
+        for runner in self._runners.values():
+            runner.stop()
+        self._pool.close()
 
     def enqueue(self, job: Job) -> Job:
         with self.get_connection() as conn:
             return _query.insert_job(conn, job)
 
-    def get_connection(self):
+    def get_connection(self) -> Any:
         """Get a connection from the pool.
 
         Returns a context manager that yields a connection.
@@ -111,4 +139,4 @@ class Oban:
         # TODO: Can we use a connection if we're already in a transaction? Would that be an extra
         # argument to `enqueue`?
 
-        return self.pool.connection()
+        return self._pool.connection()

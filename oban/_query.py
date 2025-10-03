@@ -18,6 +18,13 @@ def cancel_job(conn, job: Job, reason: str) -> None:
     conn.execute(stmt, args)
 
 
+def check_available_queues(conn) -> list[str]:
+    stmt = _load_file("check_available_queues.sql")
+    rows = conn.execute(stmt, {}).fetchall()
+
+    return [queue for (queue,) in rows]
+
+
 def complete_job(conn, job: Job) -> None:
     stmt = _load_file("complete_job.sql")
 
@@ -32,13 +39,6 @@ def error_job(conn, job: Job, error: Exception, seconds: int) -> None:
         "error": repr(error),
         "seconds": seconds,
     }
-
-    conn.execute(stmt, args)
-
-
-def snooze_job(conn, job: Job, seconds: int) -> None:
-    stmt = _load_file("snooze_job.sql")
-    args = {"id": job.id, "seconds": seconds}
 
     conn.execute(stmt, args)
 
@@ -60,3 +60,17 @@ def insert_job(conn, job: Job) -> Job:
     id, ins_at, sch_at = conn.execute(stmt, job.to_dict()).fetchone()
 
     return replace(job, id=id, inserted_at=ins_at, scheduled_at=sch_at)
+
+
+def snooze_job(conn, job: Job, seconds: int) -> None:
+    stmt = _load_file("snooze_job.sql")
+    args = {"id": job.id, "seconds": seconds}
+
+    conn.execute(stmt, args)
+
+
+def stage_jobs(conn, limit: int) -> None:
+    stmt = _load_file("stage_jobs.sql")
+    args = {"limit": limit}
+
+    conn.execute(stmt, args)

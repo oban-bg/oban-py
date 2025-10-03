@@ -2,7 +2,9 @@ import random
 from typing import Literal
 
 
-def exponential(attempt: int, *, max_pow: int = 10, min_pad: int = 0, mult: int = 1) -> int:
+def exponential(
+    attempt: int, *, max_pow: int = 10, min_pad: int = 0, mult: int = 1
+) -> int:
     """Calculate exponential backoff delay in seconds.
 
     Args:
@@ -17,7 +19,9 @@ def exponential(attempt: int, *, max_pow: int = 10, min_pad: int = 0, mult: int 
     return min_pad + mult * pow(2, min(attempt, max_pow))
 
 
-def jitter(time: int, *, mode: Literal["inc", "dec", "both"] = "both", mult: float = 0.1) -> int:
+def jitter(
+    time: int, *, mode: Literal["inc", "dec", "both"] = "both", mult: float = 0.1
+) -> int:
     """Add jitter to a backoff time.
 
     Args:
