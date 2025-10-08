@@ -93,6 +93,12 @@ def insert_jobs(conn, jobs: list[Job]) -> list[Job]:
     ]
 
 
+def install(conn) -> None:
+    stmt = _load_file("install.sql")
+
+    conn.execute(stmt)
+
+
 def snooze_job(conn, job: Job, seconds: int) -> None:
     stmt = _load_file("snooze_job.sql")
     args = {"id": job.id, "seconds": seconds}
