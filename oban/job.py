@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import json
+
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -44,9 +47,34 @@ class Job:
             if value is not None and value.tzinfo is None:
                 setattr(self, key, value.replace(tzinfo=timezone.utc))
 
-        self._validate()
+    @classmethod
+    def new(cls, **kwargs) -> Job:
+        """Create a new job with validation and normalization.
 
-    def _validate(self):
+        Use this for creating new jobs. Jobs returned from the database
+        are constructed directly and skip validation/normalization.
+
+        Args:
+            **kwargs: Job field values
+
+        Returns:
+            A validated and normalized Job instance
+
+        Example:
+            >>> job = Job.new(worker="myapp.workers.EmailWorker", args={"to": "user@example.com"})
+        """
+        job = cls(**kwargs)
+        job._normalize_tags()
+        job._validate()
+
+        return job
+
+    def _normalize_tags(self) -> None:
+        self.tags = sorted(
+            {str(tag).strip().lower() for tag in self.tags if tag and str(tag).strip()}
+        )
+
+    def _validate(self) -> None:
         if not self.worker:
             raise ValueError("worker is required")
 

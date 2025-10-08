@@ -95,7 +95,7 @@ def worker(*, oban: str = "oban", **overrides):
             worker = f"{cls.__module__}.{cls.__qualname__}"
             params = {**cls._opts, **overrides}
 
-            return Job(worker=worker, args=args, **params)
+            return Job.new(worker=worker, args=args, **params)
 
         @classmethod
         def enqueue(cls, args: dict[str, Any], /, **overrides) -> Job:
