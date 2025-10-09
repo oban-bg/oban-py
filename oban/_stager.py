@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import threading
-import time
+import asyncio
 from typing import TYPE_CHECKING
 
 from . import _query
@@ -12,15 +11,6 @@ if TYPE_CHECKING:
 
 
 class Stager:
-    """Stages scheduled jobs and notifies runners when work is available.
-
-    The stager runs in a dedicated thread and periodically:
-
-    1. Stages scheduled jobs (makes them available for execution)
-    2. Queries for queues that have available work
-    3. Notifies the appropriate runners
-    """
-
     def __init__(
         self,
         *,
@@ -33,34 +23,36 @@ class Stager:
         self._runners = runners
         self._stage_interval = stage_interval
         self._stage_limit = stage_limit
-        self._stop_event = threading.Event()
-        self._thread = threading.Thread(
-            target=self._loop, name="oban-stager", daemon=True
-        )
+        self._task: asyncio.Task | None = None
 
-    def start(self) -> None:
-        self._thread.start()
+    async def start(self) -> None:
+        self._task = asyncio.create_task(self._loop(), name="oban-stager")
 
-    def stop(self) -> None:
-        self._stop_event.set()
-        self._thread.join()
-
-    def _loop(self) -> None:
-        while not self._stop_event.is_set():
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
             try:
-                self._stage()
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                await self._stage()
+            except asyncio.CancelledError:
+                break
             except Exception:
-                if self._stop_event.is_set():
-                    break
+                pass
 
-            time.sleep(self._stage_interval)
+            await asyncio.sleep(self._stage_interval)
 
-    def _stage(self) -> None:
-        with self._oban.get_connection() as conn:
-            _query.stage_jobs(conn, self._stage_limit)
+    async def _stage(self) -> None:
+        async with self._oban.get_connection() as conn:
+            await _query.stage_jobs(conn, self._stage_limit)
 
-            available = _query.check_available_queues(conn)
+            available = await _query.check_available_queues(conn)
 
         for queue in available:
             if queue in self._runners:
-                self._runners[queue].notify()
+                await self._runners[queue].notify()

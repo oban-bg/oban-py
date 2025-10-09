@@ -88,12 +88,12 @@ def worker(*, oban: str = "oban", **overrides):
             return Job.new(worker=worker, args=args, **params)
 
         @classmethod
-        def enqueue(cls, args: dict[str, Any], /, **overrides) -> Job:
+        async def enqueue(cls, args: dict[str, Any], /, **overrides) -> Job:
             from .oban import get_instance
 
             job = cls.new(args, **overrides)
 
-            return get_instance(cls._oban_name).enqueue(job)
+            return await get_instance(cls._oban_name).enqueue(job)
 
         setattr(cls, "_opts", overrides)
         setattr(cls, "_oban_name", oban)
@@ -155,10 +155,10 @@ def job(*, oban: str = "oban", **overrides):
             return original_new(dict(bound.arguments))
 
         @wraps(func)
-        def enq_with_sig(*args, **kwargs):
+        async def enq_with_sig(*args, **kwargs):
             bound = sig.bind(*args, **kwargs)
             bound.apply_defaults()
-            return original_enq(dict(bound.arguments))
+            return await original_enq(dict(bound.arguments))
 
         worker_cls.new = staticmethod(new_with_sig)
         worker_cls.enqueue = staticmethod(enq_with_sig)

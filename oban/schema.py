@@ -2,7 +2,8 @@
 
 from . import _query
 
-def install(database_url: str) -> None:
+
+async def install(database_url: str) -> None:
     """Install the Oban schema in the specified database.
 
     Creates all necessary types, tables, and indexes for Oban to function.
@@ -13,11 +14,10 @@ def install(database_url: str) -> None:
     Example:
         >>> from oban.schema import install
         >>>
-        >>> install("postgresql://user:pass@localhost/mydb")
+        >>> await install("postgresql://user:pass@localhost/mydb")
     """
     import psycopg
 
-    with psycopg.connect(database_url) as conn:
-        _query.install(conn)
-
-        conn.commit()
+    async with await psycopg.AsyncConnection.connect(database_url) as conn:
+        await _query.install(conn)
+        await conn.commit()
