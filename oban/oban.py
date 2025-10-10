@@ -5,9 +5,9 @@ import socket
 
 from typing import Any
 from uuid import uuid4
-from psycopg_pool import AsyncConnectionPool
 
 from . import _query
+from ._driver import wrap_conn
 from .job import Job
 from ._runner import Runner
 from ._stager import Stager
@@ -20,18 +20,18 @@ class Oban:
     def __init__(
         self,
         *,
+        conn: Any,
         name: str = "oban",
         node: str | None = None,
-        pool: dict[str, Any] | AsyncConnectionPool = None,
         queues: dict[str, int] | None = None,
         stage_interval: float = 1.0,
     ) -> None:
         """Initialize an Oban instance.
 
         Args:
+            conn: Database connection or pool (e.g., AsyncConnection or AsyncConnectionPool)
             name: Name for this instance in the registry (default: "oban")
             node: Node identifier for this instance (default: socket.gethostname())
-            pool: Database connection pool or configuration dict with 'url' key
             queues: Queue names mapped to worker limits (default: {})
             stage_interval: How often to stage scheduled jobs in seconds (default: 1.0)
         """
@@ -44,17 +44,7 @@ class Oban:
         if stage_interval <= 0:
             raise ValueError("stage_interval must be positive")
 
-        # TODO: Stop creating a pool
-        if isinstance(pool, dict):
-            if "url" not in pool:
-                raise ValueError("Pool configuration must include 'url'")
-
-            pool["conninfo"] = pool.pop("url")
-            pool["open"] = False
-            self._pool = AsyncConnectionPool(**pool)
-        else:
-            self._pool = pool
-
+        self._driver = wrap_conn(conn)
         self._name = name
         self._node = node or socket.gethostname()
 
@@ -77,9 +67,7 @@ class Oban:
         await self.stop()
 
     async def start(self) -> Oban:
-        await self._pool.open()
-
-        for runner in self._runners.values():
+        for queue, runner in self._runners.items():
             await runner.start()
 
         await self._stager.start()
@@ -91,8 +79,6 @@ class Oban:
 
         for runner in self._runners.values():
             await runner.stop()
-
-        await self._pool.close()
 
     async def enqueue(self, job: Job) -> Job:
         """Insert a job into the database for processing.
@@ -116,6 +102,7 @@ class Oban:
         """
         async with self.get_connection() as conn:
             result = await _query.insert_jobs(conn, [job])
+
             return result[0]
 
     async def enqueue_many(self, jobs: list[Job]) -> list[Job]:
@@ -145,7 +132,7 @@ class Oban:
             return await _query.insert_jobs(conn, jobs)
 
     def get_connection(self) -> Any:
-        """Get a connection from the pool.
+        """Get a connection from the driver.
 
         Returns an async context manager that yields a connection.
 
@@ -153,7 +140,7 @@ class Oban:
           async with oban.get_connection() as conn:
               # use conn
         """
-        return self._pool.connection()
+        return self._driver.connection()
 
 
 def get_instance(name: str = "oban") -> Oban:

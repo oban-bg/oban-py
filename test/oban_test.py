@@ -43,7 +43,9 @@ async def with_backoff(check_fn, timeout=1.0, interval=0.01):
 
 
 class TestEnqueue:
-    async def test_jobs_created_with_new_are_inserted_into_database(self, oban_instance):
+    async def test_jobs_created_with_new_are_inserted_into_database(
+        self, oban_instance
+    ):
         async with oban_instance() as oban:
             job = Worker.new({"ref": 1})
 
@@ -108,11 +110,21 @@ class TestIntegration:
             await with_backoff(lambda: self.assert_processed(4))
             await with_backoff(lambda: self.assert_processed(5))
 
-            await with_backoff(lambda: self.assert_job_state(oban, job_1.id, "completed"))
-            await with_backoff(lambda: self.assert_job_state(oban, job_2.id, "retryable"))
-            await with_backoff(lambda: self.assert_job_state(oban, job_3.id, "cancelled"))
-            await with_backoff(lambda: self.assert_job_state(oban, job_4.id, "scheduled"))
-            await with_backoff(lambda: self.assert_job_state(oban, job_5.id, "discarded"))
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_1.id, "completed")
+            )
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_2.id, "retryable")
+            )
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_3.id, "cancelled")
+            )
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_4.id, "scheduled")
+            )
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_5.id, "discarded")
+            )
 
     @pytest.mark.oban(queues={"default": 2})
     async def test_executing_scheduled_jobs(self, oban_instance):
@@ -126,7 +138,9 @@ class TestIntegration:
             job_2 = await Worker.enqueue({"ref": 2}, scheduled_at=next_time)
 
             await with_backoff(lambda: self.assert_processed(1))
-            await with_backoff(lambda: self.assert_job_state(oban, job_1.id, "completed"))
+            await with_backoff(
+                lambda: self.assert_job_state(oban, job_1.id, "completed")
+            )
 
             await self.assert_job_state(oban, job_2.id, "scheduled")
 
