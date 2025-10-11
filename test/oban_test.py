@@ -140,7 +140,6 @@ class TestIntegration:
         finally:
             await oban.stop()
 
-
     @pytest.mark.oban(queues={"default": 2})
     async def test_executing_scheduled_jobs(self, oban_instance):
         async with oban_instance() as oban:

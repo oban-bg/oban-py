@@ -56,3 +56,22 @@ ON oban_jobs (state, queue, priority, scheduled_at, id);
 CREATE INDEX oban_jobs_staging_index
 ON oban_jobs (scheduled_at, id)
 WHERE state IN ('scheduled', 'retryable');
+
+-- Autovacuum
+
+ALTER TABLE oban_jobs SET (
+  -- Vacuum early, at 5% dead or 1000 dead rows
+  autovacuum_vacuum_scale_factor = 0.05,
+  autovacuum_vacuum_threshold = 1000,
+
+  -- Analyze even earlier to keep the planner up to date
+  autovacuum_analyze_scale_factor = 0.025,
+  autovacuum_analyze_threshold = 500,
+
+  -- Run vacuum more aggressively with minimal sleep and 10x the default IO
+  autovacuum_vacuum_cost_limit = 2000,
+  autovacuum_vacuum_cost_delay = 10,
+
+  -- Reserve 10% free space per page for HOT updates
+  fillfactor = 90
+);
