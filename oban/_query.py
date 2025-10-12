@@ -110,13 +110,14 @@ class Query:
         self, demand: int, queue: str, node: str, uuid: str
     ) -> list[Job]:
         async with self._driver.connection() as conn:
-            stmt = load_file("fetch_jobs.sql", self._prefix)
-            args = {"queue": queue, "demand": demand, "attempted_by": [node, uuid]}
+            async with conn.transaction():
+                stmt = load_file("fetch_jobs.sql", self._prefix)
+                args = {"queue": queue, "demand": demand, "attempted_by": [node, uuid]}
 
-            async with conn.cursor(row_factory=class_row(Job)) as cur:
-                await cur.execute(stmt, args)
+                async with conn.cursor(row_factory=class_row(Job)) as cur:
+                    await cur.execute(stmt, args)
 
-                return await cur.fetchall()
+                    return await cur.fetchall()
 
     async def insert_jobs(self, jobs: list[Job]) -> list[Job]:
         async with self._driver.connection() as conn:
@@ -164,10 +165,11 @@ class Query:
 
     async def stage_jobs(self, limit: int) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("stage_jobs.sql", self._prefix)
-            args = {"limit": limit}
+            async with conn.transaction():
+                stmt = load_file("stage_jobs.sql", self._prefix)
+                args = {"limit": limit}
 
-            await conn.execute(stmt, args)
+                await conn.execute(stmt, args)
 
     async def uninstall(self) -> None:
         async with self._driver.connection() as conn:
