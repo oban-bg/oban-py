@@ -4,7 +4,6 @@ import asyncio
 import socket
 
 from typing import Any
-from uuid import uuid4
 
 from .job import Job
 from .leader import Leader
@@ -68,12 +67,7 @@ class Oban:
 
         self._producers = {
             queue: Producer(
-                query=self._query,
-                name=self._name,
-                node=self._node,
-                queue=queue,
-                limit=limit,
-                uuid=str(uuid4()),
+                query=self._query, node=self._node, queue=queue, limit=limit
             )
             for queue, limit in queues.items()
         }
@@ -90,7 +84,10 @@ class Oban:
 
         self._pruner = Pruner(leader=self._leader, query=self._query, **pruner)
         self._refresher = Refresher(
-            leader=self._leader, producers=self._producers, query=self._query, **refresher
+            leader=self._leader,
+            producers=self._producers,
+            query=self._query,
+            **refresher,
         )
 
         _instances[name] = self

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from ._backoff import jittery_clamped
 from ._worker import resolve_worker
@@ -17,40 +19,38 @@ class Producer:
         self,
         *,
         limit: int = 10,
-        name: str,
         node: str,
         query: Query,
         queue: str = "default",
-        uuid: str,
     ) -> None:
         self._limit = limit
-        self._name = name
         self._node = node
         self._query = query
         self._queue = queue
-        self._uuid = uuid
 
         self._jobs_available = asyncio.Event()
         self._loop_task = None
         self._running_jobs = set()
+        self._uuid = str(uuid4())
 
     async def start(self) -> None:
         await self._query.insert_producer(
             uuid=self._uuid,
-            name=self._name,
             node=self._node,
             queue=self._queue,
             meta={"local_limit": self._limit},
         )
 
         self._loop_task = asyncio.create_task(
-            self._loop(), name=f"oban-producer-loop-{self._queue}"
+            self._loop(), name=f"oban-producer-{self._queue}"
         )
 
     async def stop(self) -> None:
         self._loop_task.cancel()
 
-        await asyncio.gather(self._loop_task, *self._running_jobs, return_exceptions=True)
+        await asyncio.gather(
+            self._loop_task, *self._running_jobs, return_exceptions=True
+        )
 
         await self._query.delete_producer(self._uuid)
 
