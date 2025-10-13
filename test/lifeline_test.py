@@ -1,14 +1,16 @@
 import pytest
 
 
-async def insert_executing_job(conn, node, uuid):
+async def insert_executing_job(
+    conn, node="dead-node", uuid="dead-uuid", attempt=1, max_attempts=20
+):
     rows = await conn.execute(
         """
-        INSERT INTO oban_jobs (state, worker, attempted_by)
-        VALUES ('executing', 'Worker', %s)
+        INSERT INTO oban_jobs (state, worker, attempted_by, attempt, max_attempts)
+        VALUES ('executing', 'Worker', %s, %s, %s)
         RETURNING id
         """,
-        ([node, uuid],),
+        ([node, uuid], attempt, max_attempts),
     )
 
     (id,) = await rows.fetchone()
@@ -18,7 +20,7 @@ async def insert_executing_job(conn, node, uuid):
 
 async def get_job(conn, job_id):
     rows = await conn.execute(
-        "SELECT id, state, meta FROM oban_jobs WHERE id = %s", (job_id,)
+        "SELECT id, state, meta, discarded_at FROM oban_jobs WHERE id = %s", (job_id,)
     )
 
     return await rows.fetchone()
@@ -41,7 +43,7 @@ class TestLifeline:
 
         async with oban._connection() as conn:
             async with conn.transaction():
-                job_id = await insert_executing_job(conn, "dead-node", "dead-uuid")
+                job_id = await insert_executing_job(conn)
 
         await oban.start()
 
@@ -78,5 +80,30 @@ class TestLifeline:
         assert job is not None
         assert job[1] == "executing"
         assert "rescued" not in job[2]
+
+        await oban.stop()
+
+    @pytest.mark.oban(leadership=True, queues={"alpha": 1})
+    async def test_lifeline_discards_jobs_without_remaining_attempts(
+        self, oban_instance
+    ):
+        oban = oban_instance()
+
+        async with oban._connection() as conn:
+            async with conn.transaction():
+                job_id = await insert_executing_job(conn, attempt=1, max_attempts=1)
+
+        await oban.start()
+
+        # Force synchronous rescue
+        await oban._lifeline._rescue()
+
+        async with oban._connection() as conn:
+            job = await get_job(conn, job_id)
+
+        assert job is not None
+        assert job[1] == "discarded"
+        assert "rescued" not in job[2]
+        assert job[3] is not None
 
         await oban.stop()
