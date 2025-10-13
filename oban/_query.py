@@ -138,6 +138,15 @@ class Query:
 
                 return result.rowcount
 
+    async def rescue_jobs(self) -> int:
+        async with self._driver.connection() as conn:
+            async with conn.transaction():
+                stmt = load_file("rescue_jobs.sql", self._prefix)
+
+                result = await conn.execute(stmt)
+
+                return result.rowcount
+
     async def snooze_job(self, job: Job, seconds: int) -> None:
         async with self._driver.connection() as conn:
             stmt = load_file("snooze_job.sql", self._prefix)

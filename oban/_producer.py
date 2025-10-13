@@ -19,11 +19,13 @@ class Producer:
         self,
         *,
         limit: int = 10,
+        name: str,
         node: str,
         query: Query,
         queue: str = "default",
     ) -> None:
         self._limit = limit
+        self._name = name
         self._node = node
         self._query = query
         self._queue = queue
@@ -36,6 +38,7 @@ class Producer:
     async def start(self) -> None:
         await self._query.insert_producer(
             uuid=self._uuid,
+            name=self._name,
             node=self._node,
             queue=self._queue,
             meta={"local_limit": self._limit},

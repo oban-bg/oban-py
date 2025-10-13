@@ -7,6 +7,7 @@ from typing import Any
 
 from .job import Job
 from .leader import Leader
+from ._lifeline import Lifeline
 from ._producer import Producer
 from ._pruner import Pruner
 from ._query import Query
@@ -22,6 +23,7 @@ class Oban:
         *,
         conn: Any,
         leadership: bool | None = None,
+        lifeline: dict[str, Any] = {},
         name: str = "oban",
         node: str | None = None,
         prefix: str = "public",
@@ -33,6 +35,7 @@ class Oban:
         """Initialize an Oban instance.
 
         Oban can run in two modes:
+
         - Server mode: When queues are configured, this instance processes jobs.
           Leadership is enabled by default to coordinate cluster-wide operations.
         - Client mode: When no queues are configured, this instance only enqueues jobs.
@@ -41,6 +44,7 @@ class Oban:
         Args:
             conn: Database connection or pool (e.g., AsyncConnection or AsyncConnectionPool)
             leadership: Enable leadership election (default: True if queues configured, False otherwise)
+            lifeline: Lifeline configuration options: interval (default: 60.0)
             name: Name for this instance in the registry (default: "oban")
             node: Node identifier for this instance (default: socket.gethostname())
             prefix: PostgreSQL schema where Oban tables are located (default: "public")
@@ -67,10 +71,14 @@ class Oban:
 
         self._producers = {
             queue: Producer(
-                query=self._query, node=self._node, queue=queue, limit=limit
+                query=self._query, name=name, node=self._node, queue=queue, limit=limit
             )
             for queue, limit in queues.items()
         }
+
+        self._leader = Leader(
+            query=self._query, node=self._node, name=name, enabled=leadership
+        )
 
         self._stager = Stager(
             query=self._query,
@@ -78,11 +86,9 @@ class Oban:
             stage_interval=stage_interval,
         )
 
-        self._leader = Leader(
-            query=self._query, node=self._node, name=name, enabled=leadership
-        )
-
+        self._lifeline = Lifeline(leader=self._leader, query=self._query, **lifeline)
         self._pruner = Pruner(leader=self._leader, query=self._query, **pruner)
+
         self._refresher = Refresher(
             leader=self._leader,
             producers=self._producers,
@@ -119,6 +125,7 @@ class Oban:
         tasks = [
             self._leader.start(),
             self._stager.start(),
+            self._lifeline.start(),
             self._pruner.start(),
             self._refresher.start(),
         ]
@@ -134,6 +141,7 @@ class Oban:
         tasks = [
             self._leader.stop(),
             self._stager.stop(),
+            self._lifeline.stop(),
             self._pruner.stop(),
             self._refresher.stop(),
         ]
