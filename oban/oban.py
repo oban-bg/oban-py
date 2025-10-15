@@ -8,6 +8,7 @@ from typing import Any
 from .job import Job
 from .leader import Leader
 from ._lifeline import Lifeline
+from ._notifier import Notifier, PostgresNotifier
 from ._producer import Producer
 from ._pruner import Pruner
 from ._query import Query
@@ -26,6 +27,7 @@ class Oban:
         lifeline: dict[str, Any] = {},
         name: str = "oban",
         node: str | None = None,
+        notifier: Notifier | None = None,
         prefix: str = "public",
         pruner: dict[str, Any] = {},
         queues: dict[str, int] | None = None,
@@ -47,10 +49,12 @@ class Oban:
             lifeline: Lifeline configuration options: interval (default: 60.0)
             name: Name for this instance in the registry (default: "oban")
             node: Node identifier for this instance (default: socket.gethostname())
+            notifier: Notifier instance for pub/sub (default: PostgresNotifier with default config)
             prefix: PostgreSQL schema where Oban tables are located (default: "public")
             pruner: Pruning configuration options: max_age in seconds (default: 86_400.0, 1 day),
                     interval (default: 60.0), limit (default: 20_000).
             queues: Queue names mapped to worker limits (default: {})
+            refresher: Refresher configuration options: interval (default: 15.0), max_age (default: 60.0)
             stage_interval: How often to stage scheduled jobs, in seconds (default: 1.0)
         """
         queues = queues or {}
@@ -69,6 +73,8 @@ class Oban:
         self._node = node or socket.gethostname()
         self._query = Query(conn, prefix)
 
+        self._notifier = notifier or PostgresNotifier(query=self._query)
+
         self._producers = {
             queue: Producer(
                 query=self._query, name=name, node=self._node, queue=queue, limit=limit
@@ -82,6 +88,7 @@ class Oban:
 
         self._stager = Stager(
             query=self._query,
+            notifier=self._notifier,
             producers=self._producers,
             stage_interval=stage_interval,
         )
@@ -123,6 +130,7 @@ class Oban:
             await self._verify_structure()
 
         tasks = [
+            self._notifier.start(),
             self._leader.start(),
             self._stager.start(),
             self._lifeline.start(),
@@ -139,6 +147,7 @@ class Oban:
 
     async def stop(self) -> None:
         tasks = [
+            self._notifier.stop(),
             self._leader.stop(),
             self._stager.stop(),
             self._lifeline.stop(),

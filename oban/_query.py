@@ -255,3 +255,9 @@ class Query:
             result = await conn.execute(stmt, args)
 
             return result.rowcount
+
+    # Notifier
+
+    async def notify(self, channel: str, payload: str = "") -> None:
+        async with self._driver.connection() as conn:
+            await conn.execute("SELECT pg_notify(%s, %s)", (channel, payload))
