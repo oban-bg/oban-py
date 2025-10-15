@@ -18,20 +18,23 @@ class Producer:
     def __init__(
         self,
         *,
+        debounce_interval: float = 0.005,
         limit: int = 10,
         name: str,
         node: str,
         query: Query,
         queue: str = "default",
     ) -> None:
+        self._debounce_interval = debounce_interval
         self._limit = limit
         self._name = name
         self._node = node
         self._query = query
         self._queue = queue
 
-        self._jobs_available = asyncio.Event()
+        self._last_fetch_time = 0.0
         self._loop_task = None
+        self._notified = asyncio.Event()
         self._running_jobs = set()
         self._uuid = str(uuid4())
 
@@ -57,21 +60,23 @@ class Producer:
 
         await self._query.delete_producer(self._uuid)
 
-    async def notify(self) -> None:
-        self._jobs_available.set()
+    def notify(self) -> None:
+        self._notified.set()
 
     async def _loop(self) -> None:
         while True:
             try:
-                await asyncio.wait_for(self._jobs_available.wait(), timeout=1.0)
+                await asyncio.wait_for(self._notified.wait(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
 
-            self._jobs_available.clear()
+            self._notified.clear()
 
             try:
+                await self._debounce_fetch()
+
                 demand = self._limit - len(self._running_jobs)
 
                 if demand <= 0:
@@ -79,9 +84,11 @@ class Producer:
 
                 jobs = await self._fetch_jobs(demand)
 
+                self._last_fetch_time = asyncio.get_event_loop().time()
+
                 for job in jobs:
                     task = asyncio.create_task(self._execute(job))
-                    task.add_done_callback(self._running_jobs.discard)
+                    task.add_done_callback(self._on_job_complete)
 
                     self._running_jobs.add(task)
 
@@ -89,6 +96,17 @@ class Producer:
                 break
             except Exception:
                 pass
+
+    async def _debounce_fetch(self) -> None:
+        elapsed = asyncio.get_event_loop().time() - self._last_fetch_time
+
+        if elapsed < self._debounce_interval:
+            await asyncio.sleep(self._debounce_interval - elapsed)
+
+    def _on_job_complete(self, task: asyncio.Task) -> None:
+        self._running_jobs.discard(task)
+
+        self.notify()
 
     async def _fetch_jobs(self, demand: int):
         return await self._query.fetch_jobs(

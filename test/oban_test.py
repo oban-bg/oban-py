@@ -200,3 +200,16 @@ class TestIntegration:
 
             assert job.discarded_at is not None
             assert len(job.errors) > 0
+
+    @pytest.mark.oban(queues={"default": 3}, stage_interval=10.0)
+    async def test_jobs_fetched_immediately_after_completion(self, oban_instance):
+        async with oban_instance() as oban:
+            await oban.enqueue_many(
+                Worker.new({"act": "ok", "ref": 1}),
+                Worker.new({"act": "ok", "ref": 2}),
+                Worker.new({"act": "ok", "ref": 3}),
+            )
+
+            await with_backoff(lambda: self.assert_processed(1))
+            await with_backoff(lambda: self.assert_processed(2))
+            await with_backoff(lambda: self.assert_processed(3))
