@@ -321,8 +321,7 @@ class Scheduler:
         result = await self._query.insert_jobs(jobs)
         queues = {job.queue for job in result}
 
-        for queue in queues:
-            await self._notifier.notify("insert", {"queue": queue})
+        await self._notifier.notify("insert", [{"queue": queue} for queue in queues])
 
     def _is_now(self, entry: ScheduledEntry) -> bool:
         now = datetime.now(entry.timezone or self._timezone)

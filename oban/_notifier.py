@@ -105,15 +105,16 @@ class Notifier(Protocol):
         """
         ...
 
-    async def notify(self, channel: str, payload: dict) -> None:
-        """Send a notification to a channel.
+    async def notify(self, channel: str, payloads: dict | list[dict]) -> None:
+        """Send one or more notifications to a channel.
 
         Args:
             channel: Channel name to send notification on
-            payload: Payload dict to send
+            payloads: Payload dict or list of payload dicts to send
 
         Example:
             >>> await notifier.notify("insert", {"queue": "default"})
+            >>> await notifier.notify("insert", [{"queue": "default"}, {"queue": "mailers"}])
         """
         ...
 
@@ -203,11 +204,14 @@ class PostgresNotifier:
                 del self._subscriptions[channel]
                 self._pending_unlisten.add(channel)
 
-    async def notify(self, channel: str, payload: dict) -> None:
-        channel = self._to_full_channel(channel)
-        payload = encode_payload(payload)
+    async def notify(self, channel: str, payloads: dict | list[dict]) -> None:
+        if isinstance(payloads, dict):
+            payloads = [payloads]
 
-        await self._query.notify(channel, payload)
+        channel = self._to_full_channel(channel)
+        encoded = [encode_payload(payload) for payload in payloads]
+
+        await self._query.notify(channel, encoded)
 
     async def _connect(self) -> None:
         conninfo = self._query._driver.conninfo

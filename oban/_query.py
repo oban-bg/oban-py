@@ -254,6 +254,9 @@ class Query:
 
     # Notifier
 
-    async def notify(self, channel: str, payload: str = "") -> None:
+    async def notify(self, channel: str, payloads: list[str]) -> None:
         async with self._driver.connection() as conn:
-            await conn.execute("SELECT pg_notify(%s, %s)", (channel, payload))
+            await conn.execute(
+                "SELECT pg_notify(%s, payload) FROM json_array_elements_text(%s::json) AS payload",
+                (channel, json.dumps(payloads)),
+            )

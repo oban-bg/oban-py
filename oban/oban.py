@@ -223,8 +223,7 @@ class Oban:
 
         queues = {job.queue for job in result if job.state == "available"}
 
-        for queue in queues:
-            await self._notifier.notify("insert", {"queue": queue})
+        await self._notifier.notify("insert", [{"queue": queue} for queue in queues])
 
         return result
 
