@@ -66,6 +66,22 @@ class ScheduledEntry:
 _scheduled_entries: list[ScheduledEntry] = []
 
 
+def scheduled_entries() -> list[ScheduledEntry]:
+    """Return a copy of all registered scheduled entries.
+
+    Returns:
+        A list of all scheduled entries registered via @worker or @job decorators
+        with cron expressions.
+
+    Example:
+        >>> from oban._scheduler import scheduled_entries
+        >>> entries = scheduled_entries()
+        >>> for entry in entries:
+        ...     print(f"{entry.expression.input} -> {entry.worker_cls.__name__}")
+    """
+    return _scheduled_entries.copy()
+
+
 def register_scheduled(cron: str | dict, worker_cls: type) -> None:
     """Register a worker or job for periodic execution.
 

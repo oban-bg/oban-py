@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from oban import job, worker
-from oban._scheduler import Expression, Scheduler, _scheduled_entries
+from oban._scheduler import Expression, Scheduler, _scheduled_entries, scheduled_entries
 
 
 class TestExpressionParse:
@@ -195,6 +195,20 @@ class TestScheduledRegistration:
             pass
 
         assert len(_scheduled_entries) == 2
+
+    def test_scheduled_entries_returns_copy(self):
+        @worker(cron="@daily")
+        class DailyWorker:
+            def process(self, job):
+                pass
+
+        entries = scheduled_entries()
+
+        assert len(entries) == 1
+
+        # Verify it's a copy, not the original list
+        entries.clear()
+        assert len(scheduled_entries()) == 1
 
 
 class TestSchedulerEvaluate:
