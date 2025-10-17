@@ -3,7 +3,8 @@ import random
 
 from datetime import datetime, timezone
 
-from oban.cron import Expression, Scheduler
+from oban import job, worker
+from oban.cron import Expression, Scheduler, _scheduled_entries
 
 
 class TestExpressionParse:
@@ -151,6 +152,128 @@ class TestExpressionIsNow:
         sunday = datetime.now().replace(year=2025, month=10, day=12)
 
         assert Expression.parse("* * * * SUN").is_now(sunday)
+
+
+class TestScheduledRegistration:
+    @pytest.fixture(autouse=True)
+    def clear_scheduled_entries(self):
+        _scheduled_entries.clear()
+        yield
+        _scheduled_entries.clear()
+
+    def test_worker_with_cron_registers_entry(self):
+        @worker(queue="cleanup", cron="0 0 * * *")
+        class CleanupWorker:
+            def process(self, job):
+                pass
+
+        entry = _scheduled_entries[0]
+
+        assert entry
+        assert entry.worker_cls == CleanupWorker
+        assert entry.expression.input == "0 0 * * *"
+
+    def test_job_with_cron_registers_entry(self):
+        @job(queue="reports", cron="@daily")
+        def daily_report():
+            pass
+
+        entry = _scheduled_entries[0]
+
+        assert entry
+        assert entry.expression.input == "@daily"
+
+    def test_multiple_registrations(self):
+        @worker(cron="0 0 * * *")
+        class BusinessMan:
+            def process(self, job):
+                pass
+
+        @job(cron="@hourly")
+        def business():
+            pass
+
+        assert len(_scheduled_entries) == 2
+
+
+class TestSchedulerEvaluate:
+    @pytest.fixture(autouse=True)
+    def clear_scheduled_entries(self):
+        _scheduled_entries.clear()
+        yield
+        _scheduled_entries.clear()
+
+    @pytest.fixture
+    def mock_query(self):
+        class MockQuery:
+            def __init__(self):
+                self.enqueued_jobs = []
+
+            async def enqueue_many(self, jobs):
+                self.enqueued_jobs.extend(jobs)
+
+        return MockQuery()
+
+    @pytest.fixture
+    def scheduler(self, mock_query):
+        return Scheduler(leader=None, query=mock_query)
+
+    @pytest.mark.asyncio
+    async def test_enqueues_jobs_for_matching_expressions(self, scheduler, mock_query):
+        @worker(queue="minute", cron="* * * * *")
+        class EveryMinuteWorker:
+            def process(self, job):
+                pass
+
+        await scheduler._evaluate()
+
+        job = mock_query.enqueued_jobs[0]
+
+        assert job
+        assert job.queue == "minute"
+        assert job.worker.endswith("EveryMinuteWorker")
+
+    @pytest.mark.asyncio
+    async def test_does_not_enqueue_non_matching_expressions(self, scheduler, mock_query):
+        @worker(cron="0 0 1 1 *")
+        class NewYearWorker:
+            def process(self, job):
+                pass
+
+        await scheduler._evaluate()
+
+        # We shouldn't be running tests at midnight on New Years Eve...
+        assert len(mock_query.enqueued_jobs) == 0
+
+    @pytest.mark.asyncio
+    async def test_enqueues_multiple_matching_jobs(self, scheduler, mock_query):
+        @worker(queue="first", cron="* * * * *")
+        class FirstWorker:
+            def process(self, job):
+                pass
+
+        @job(queue="second", cron="* * * * *")
+        def second_job():
+            pass
+
+        await scheduler._evaluate()
+
+        assert len(mock_query.enqueued_jobs) == 2
+
+    @pytest.mark.asyncio
+    async def test_injects_cron_metadata(self, scheduler, mock_query):
+        @worker(queue="meta", cron="* * * * *")
+        class MetaWorker:
+            def process(self, job):
+                pass
+
+        await scheduler._evaluate()
+
+        job = mock_query.enqueued_jobs[0]
+
+        assert job.meta["cron"] is True
+        assert job.meta["cron_expr"] == "* * * * *"
+        assert "cron_name" in job.meta
 
 
 class TestSchedulerTimeToNextMinute:

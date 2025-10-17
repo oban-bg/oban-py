@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from ._worker import worker_name
+
 if TYPE_CHECKING:
     from .job import Job
     from .leader import Leader
@@ -52,8 +54,30 @@ _NICKNAMES = {
     "@hourly": "0 * * * *",
 }
 
-# TODO: Type this, and get a real structure.
-_table = []
+
+@dataclass(slots=True, frozen=True)
+class ScheduledEntry:
+    expression: Expression
+    worker_cls: type
+
+
+_scheduled_entries: list[ScheduledEntry] = []
+
+
+def register_scheduled(expression: str, worker_cls: type) -> None:
+    """Register a worker or job for periodic execution.
+
+    Args:
+        expression: Cron expression string (e.g., "0 0 * * *" or "@daily")
+        worker_cls: The worker class to execute
+
+    Raises:
+        ValueError: If the cron expression is invalid
+    """
+    parsed = Expression.parse(expression)
+    entry = ScheduledEntry(expression=parsed, worker_cls=worker_cls)
+
+    _scheduled_entries.append(entry)
 
 
 def _replace_aliases(expression: str, aliases: dict[str, str]) -> str:
@@ -238,15 +262,29 @@ class Scheduler:
                 break
 
     async def _evaluate(self) -> None:
-        jobs = [self._build(*entry) for entry in _table if entry[0].is_now]
+        now = datetime.now(timezone.utc)
 
-        # TODO: Actually enqueue them. We want to use `oban.enqueue_many` to get the
-        # notifications.
-        print(jobs)
+        jobs = [
+            self._build_job(entry)
+            for entry in _scheduled_entries
+            if entry.expression.is_now(now)
+        ]
 
-    # TODO: Figure out what we're actually using to enqueue here
-    def _build(expr, thingy, opts) -> Job:
-        pass
+        await self._query.enqueue_many(jobs)
+
+    def _build_job(self, entry: ScheduledEntry) -> Job:
+        work_name = worker_name(entry.worker_cls)
+        cron_name = str(hash((entry.expression.input, work_name)))
+
+        job = entry.worker_cls.new()
+
+        job.meta = {
+            "cron": True,
+            "cron_expr": entry.expression.input,
+            "cron_name": cron_name,
+        }
+
+        return job
 
     def _time_to_next_minute(self, time: None | datetime = None) -> float:
         time = time or datetime.now(timezone.utc)

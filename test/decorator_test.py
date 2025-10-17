@@ -37,6 +37,24 @@ class TestWorkerDecorator:
         assert job.queue == "urgent"
         assert job.priority == 9
 
+    def test_accepts_cron_expression(self):
+        @worker(queue="cleanup", cron="0 0 * * *")
+        class DailyWorker:
+            def process(self, job):
+                pass
+
+        job = DailyWorker.new({})
+
+        assert job.queue == "cleanup"
+
+    def test_raises_on_invalid_cron_expression(self):
+        with pytest.raises(ValueError, match="incorrect number of fields"):
+
+            @worker(cron="@unknown")
+            class InvalidWorker:
+                def process(self, job):
+                    pass
+
 
 class TestJobDecorator:
     def test_preserves_function_metadata(self):
@@ -78,3 +96,19 @@ class TestJobDecorator:
 
         with pytest.raises(TypeError):
             send_email.new("a", "b", "c")
+
+    def test_accepts_cron_expression(self):
+        @job(queue="reports", cron="0 9 * * MON")
+        def weekly_report():
+            pass
+
+        job_instance = weekly_report.new()
+
+        assert job_instance.queue == "reports"
+
+    def test_raises_on_invalid_cron_expression(self):
+        with pytest.raises(ValueError, match="incorrect number of fields"):
+
+            @job(cron="* * *")
+            def bad_task():
+                pass

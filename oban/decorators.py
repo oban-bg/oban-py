@@ -10,12 +10,13 @@ import inspect
 from functools import wraps
 from typing import Any, Callable
 
+from .cron import register_scheduled
 from .job import Job
 from .types import Result
-from ._worker import register_worker
+from ._worker import register_worker, worker_name
 
 
-def worker(*, oban: str = "oban", **overrides):
+def worker(*, oban: str = "oban", cron: str | None = None, **overrides):
     """Decorate a class to make it a viable worker.
 
     The decorator adds worker functionality to a class, including job creation
@@ -25,6 +26,7 @@ def worker(*, oban: str = "oban", **overrides):
 
     Args:
         oban: Name of the Oban instance to use (default: "oban")
+        cron: Optional cron expression for periodic execution (e.g., "0 0 * * *" or "@daily")
         **overrides: Configuration options for the worker (queue, priority, etc.)
 
     Returns:
@@ -54,6 +56,16 @@ def worker(*, oban: str = "oban", **overrides):
         ... )
         >>> print(job.priority)  # 5
         >>>
+        >>> # Periodic worker that runs daily at midnight
+        >>> @worker(queue="cleanup", cron="@daily")
+        ... class DailyCleanup:
+        ...     def process(self, job):
+        ...         print("Running daily cleanup")
+        ...         return None
+        >>>
+        >>> # Workers can also be created without args
+        >>> job = DailyCleanup.new()  # args defaults to {}
+        >>>
         >>> # Custom backoff for retries
         >>> @worker(queue="default")
         ... class CustomBackoffWorker:
@@ -81,11 +93,10 @@ def worker(*, oban: str = "oban", **overrides):
             setattr(cls, "process", process)
 
         @classmethod
-        def new(cls, args: dict[str, Any], /, **overrides) -> Job:
-            worker = f"{cls.__module__}.{cls.__qualname__}"
+        def new(cls, args: dict[str, Any] = None, /, **overrides) -> Job:
             params = {**cls._opts, **overrides}
 
-            return Job.new(worker=worker, args=args, **params)
+            return Job.new(worker=worker_name(cls), args=args or {}, **params)
 
         @classmethod
         async def enqueue(cls, args: dict[str, Any], /, **overrides) -> Job:
@@ -102,12 +113,15 @@ def worker(*, oban: str = "oban", **overrides):
 
         register_worker(cls)
 
+        if cron:
+            register_scheduled(cron, cls)
+
         return cls
 
     return decorate
 
 
-def job(*, oban: str = "oban", **overrides):
+def job(*, oban: str = "oban", cron: str | None = None, **overrides):
     """Decorate a function to make it an Oban job.
 
     The decorated function's signature is preserved for new() and enqueue().
@@ -117,6 +131,7 @@ def job(*, oban: str = "oban", **overrides):
 
     Args:
         oban: Name of the Oban instance to use (default: "oban")
+        cron: Optional cron expression for periodic execution (e.g., "0 0 * * *" or "@daily")
         **overrides: Configuration options (queue, priority, etc.)
 
     Example:
@@ -127,6 +142,12 @@ def job(*, oban: str = "oban", **overrides):
         ...     print(f"Sending to {to}: {subject}")
         >>>
         >>> send_email.enqueue("user@example.com", "Hello", "World")
+        >>>
+        >>> # Periodic job that runs every Monday at 9am
+        >>> @job(queue="reports", cron="0 9 * * MON")
+        ... def generate_weekly_report():
+        ...     print("Generating weekly report")
+        ...     return {"status": "complete"}
     """
 
     def decorate(func: Callable) -> type:
@@ -141,7 +162,7 @@ def job(*, oban: str = "oban", **overrides):
         FunctionWorker.__qualname__ = func.__qualname__
         FunctionWorker.__doc__ = func.__doc__
 
-        worker_cls = worker(oban=oban, **overrides)(FunctionWorker)
+        worker_cls = worker(oban=oban, cron=cron, **overrides)(FunctionWorker)
 
         original_new = worker_cls.new
         original_enq = worker_cls.enqueue

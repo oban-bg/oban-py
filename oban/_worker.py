@@ -3,9 +3,14 @@ import importlib
 _registry: dict[str, type] = {}
 
 
+def worker_name(cls: type) -> str:
+    """Generate the fully qualified name for a worker class."""
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
 def register_worker(cls) -> None:
     """Register a worker class for usage later"""
-    key = f"{cls.__module__}.{cls.__qualname__}"
+    key = worker_name(cls)
 
     _registry[key] = cls
 
