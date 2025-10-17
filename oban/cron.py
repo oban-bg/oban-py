@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .leader import Leader
     from ._query import Query
 
-DOW_DICT = {
+_DOW_ALIASES = {
     "MON": "1",
     "TUE": "2",
     "WED": "3",
@@ -21,7 +21,7 @@ DOW_DICT = {
     "SUN": "7",
 }
 
-MON_DICT = {
+_MON_ALIASES = {
     "JAN": "1",
     "FEB": "2",
     "MAR": "3",
@@ -36,13 +36,13 @@ MON_DICT = {
     "DEC": "12",
 }
 
-MIN_SET = frozenset(range(0, 60))
-HRS_SET = frozenset(range(0, 24))
-DAY_SET = frozenset(range(1, 32))
-MON_SET = frozenset(range(1, 13))
-DOW_SET = frozenset(range(1, 8))
+_MIN_SET = frozenset(range(0, 60))
+_HRS_SET = frozenset(range(0, 24))
+_DAY_SET = frozenset(range(1, 32))
+_MON_SET = frozenset(range(1, 13))
+_DOW_SET = frozenset(range(1, 8))
 
-NICKNAMES = {
+_NICKNAMES = {
     "@annually": "0 0 1 1 *",
     "@yearly": "0 0 1 1 *",
     "@monthly": "0 0 1 * *",
@@ -56,63 +56,63 @@ NICKNAMES = {
 _table = []
 
 
-def _trans_field(input: str, mapper: dict) -> str:
-    for val in mapper:
-        if val in input:
-            input = input.replace(val, mapper[val])
+def _replace_aliases(expression: str, aliases: dict[str, str]) -> str:
+    for name, value in aliases.items():
+        expression = expression.replace(name, value)
 
-    return input
+    return expression
 
 
-def _parse_field(field: str, all: set) -> set(int):
+def _parse_field(field: str, allowed: set[int]) -> set[int]:
     parsed = set()
 
     for part in re.split(r"\s*,\s*", field):
-        parsed.update(_parse_part(part, all))
+        parsed.update(_parse_part(part, allowed))
 
-    if not parsed.issubset(all):
-        raise ValueError(f"field {field} is out of range: {all}")
+    if not parsed.issubset(allowed):
+        raise ValueError(f"field {field} is out of range: {allowed}")
 
     return parsed
 
 
-def _parse_part(part: str, all: set) -> set(int):
+def _parse_part(part: str, allowed: set[int]) -> set[int]:
     if part == "*":
-        return all
+        return allowed
     elif re.match(r"^\d+$", part):
         return _parse_literal(part)
     elif re.match(r"^\*\/[1-9]\d?$", part):
-        return _parse_step(part, all)
+        return _parse_step(part, allowed)
     elif re.match(r"^\d+(\-\d+)?\/[1-9]\d?$", part):
-        return _parse_range_step(part, all)
+        return _parse_range_step(part, allowed)
     elif re.match(r"^\d+\-\d+$", part):
-        return _parse_range(part, all)
+        return _parse_range(part, allowed)
     else:
         raise ValueError(f"unrecognized expression: {part}")
 
 
-def _parse_literal(part: str) -> set(int):
+def _parse_literal(part: str) -> set[int]:
     return {int(part)}
 
 
-def _parse_step(part: str, all: set) -> set(int):
+def _parse_step(part: str, allowed: set[int]) -> set[int]:
     step = int(part.replace("*/", ""))
 
-    return set(range(min(all), max(all) + 1, step))
+    return set(range(min(allowed), max(allowed) + 1, step))
 
 
-def _parse_range_step(part: str, all: set) -> set(int):
-    (sub_range, part) = part.split("/")
+def _parse_range_step(part: str, allowed: set[int]) -> set[int]:
+    range_part, step_value = part.split("/")
+    range_set = _parse_range(range_part, allowed)
+    step_part = f"*/{step_value}"
 
-    return _parse_step(part, _parse_range(sub_range, all))
+    return _parse_step(step_part, range_set)
 
 
-def _parse_range(part: str, all: set) -> set(int):
+def _parse_range(part: str, allowed: set[int]) -> set[int]:
     match part.split("-"):
         case [rmin]:
             rmin = int(rmin)
-
-            return set(range(rmin, max(all) + 1))
+            return set(range(rmin, max(allowed) + 1))
         case [rmin, rmax]:
             rmin = int(rmin)
             rmax = int(rmax)
@@ -137,43 +137,74 @@ class Expression:
     weekdays: set
 
     @classmethod
-    def parse(cls, input: str) -> Expression:
-        """Parse a crontab expression into an expression object"""
-        if input in NICKNAMES:
-            input = NICKNAMES[input]
+    def parse(cls, expression: str) -> Expression:
+        """Parse a crontab expression into an Expression object.
 
-        match re.split(r"\s+", input):
-            case [mip, hrp, dap, mop, wdp]:
-                mop = _trans_field(mop, MON_DICT)
-                wdp = _trans_field(wdp, DOW_DICT)
+        Supports standard cron syntax with five fields: minute, hour, day, month,
+        weekday. Each field can contain:
+
+        - Literal values: "5"
+        - Wildcards: "*"
+        - Ranges: "1-5"
+        - Steps: "*/10" or "1-30/5"
+        - Lists: "1,2,5,10"
+
+        Also supports nickname expressions:
+
+        - @hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually
+
+        Month and weekday names are case-sensitive and must be uppercase:
+
+        - Months: JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC
+        - Weekdays: MON, TUE, WED, THU, FRI, SAT, SUN
+
+        Args:
+            expression: A cron expression string (e.g., "0 0 * * *" or "@daily")
+
+        Returns:
+            An Expression object with parsed minute, hour, day, month, and weekday sets
+
+        Raises:
+            ValueError: If the expression format is invalid or values are out of range
+
+        Examples:
+            >>> Expression.parse("0 0 * * *") # Daily at midnight
+            >>> Expression.parse("*/15 * * * *") # Every 15 minutes
+            >>> Expression.parse("0 9-17 * * MON-FRI") # 9am-5pm on weekdays
+            >>> Expression.parse("@hourly") # Every hour
+        """
+        normalized = _NICKNAMES.get(expression, expression)
+
+        match re.split(r"\s+", normalized):
+            case [min_part, hrs_part, day_part, mon_part, dow_part]:
+                mon_part = _replace_aliases(mon_part, _MON_ALIASES)
+                dow_part = _replace_aliases(dow_part, _DOW_ALIASES)
 
                 return cls(
-                    input=input,
-                    minutes=_parse_field(mip, MIN_SET),
-                    hours=_parse_field(hrp, HRS_SET),
-                    days=_parse_field(dap, DAY_SET),
-                    months=_parse_field(mop, MON_SET),
-                    weekdays=_parse_field(wdp, DOW_SET),
+                    input=expression,
+                    minutes=_parse_field(min_part, _MIN_SET),
+                    hours=_parse_field(hrs_part, _HRS_SET),
+                    days=_parse_field(day_part, _DAY_SET),
+                    months=_parse_field(mon_part, _MON_SET),
+                    weekdays=_parse_field(dow_part, _DOW_SET),
                 )
             case _:
-                raise ValueError(f"incorrect number of fields: {input}")
+                raise ValueError(f"incorrect number of fields: {expression}")
 
     def is_now(self, time: None | datetime = None) -> bool:
         """Check whether a cron expression matches the current date and time."""
         time = time or datetime.now(timezone.utc)
 
         return (
-            time.month in self.months
-            and time.isoweekday() in self.weekdays
+            time.isoweekday() in self.weekdays
+            and time.month in self.months
             and time.day in self.days
             and time.hour in self.hours
             and time.minute in self.minutes
         )
 
 
-# TODO: Look into a better name than just "Cron", it's not an action. What about naming this scheduler
-# instead?
-class Cron:
+class Scheduler:
     def __init__(
         self,
         *,

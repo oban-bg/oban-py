@@ -3,7 +3,7 @@ import random
 
 from datetime import datetime, timezone
 
-from oban.cron import Cron, Expression
+from oban.cron import Expression, Scheduler
 
 
 class TestExpressionParse:
@@ -14,9 +14,9 @@ class TestExpressionParse:
             Expression.parse("* * *")
 
     def test_parsing_nicknames(self):
-        assert "0 * * * *" == Expression.parse("@hourly").input
-        assert "0 0 * * *" == Expression.parse("@daily").input
-        assert "0 0 1 * *" == Expression.parse("@monthly").input
+        assert {0} == Expression.parse("@hourly").minutes
+        assert {0} == Expression.parse("@daily").hours
+        assert {1} == Expression.parse("@monthly").days
 
     def test_parsing_month_aliases(self):
         assert {1} == Expression.parse("* * * JAN *").months
@@ -66,16 +66,16 @@ class TestExpressionIsNow:
         random.seed(seed)
 
         min = random.randint(1, 59)
-        hor = random.randint(1, 23)
+        hrs = random.randint(1, 23)
         day = random.randint(2, 28)
         mon = random.randint(2, 12)
 
-        time = datetime.now().replace(month=mon, day=day, hour=hor, minute=min)
-        expr = Expression.parse(f"{min} {hor} {day} {mon} *")
+        time = datetime.now().replace(month=mon, day=day, hour=hrs, minute=min)
+        expr = Expression.parse(f"{min} {hrs} {day} {mon} *")
 
         assert expr.is_now(time)
         assert not expr.is_now(time.replace(minute=min - 1))
-        assert not expr.is_now(time.replace(hour=hor - 1))
+        assert not expr.is_now(time.replace(hour=hrs - 1))
         assert not expr.is_now(time.replace(day=day - 1))
         assert not expr.is_now(time.replace(month=mon - 1))
 
@@ -85,10 +85,10 @@ class TestExpressionIsNow:
         assert Expression.parse("* * * * SUN").is_now(sunday)
 
 
-class TestCronTimeToNextMinute:
+class TestSchedulerTimeToNextMinute:
     @pytest.fixture
     def cron(self):
-        return Cron(leader=None, query=None)
+        return Scheduler(leader=None, query=None)
 
     def time_to_next_minute(self, cron, *, hour=12, minute=34, second=0, microsecond=0):
         time = datetime.now(timezone.utc).replace(
