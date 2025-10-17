@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from .job import Job
 from .types import Result
-from ._worker import _registry
+from ._worker import register_worker
 
 
 def worker(*, oban: str = "oban", **overrides):
@@ -100,7 +100,7 @@ def worker(*, oban: str = "oban", **overrides):
         setattr(cls, "new", new)
         setattr(cls, "enqueue", enqueue)
 
-        _registry[f"{cls.__module__}.{cls.__qualname__}"] = cls
+        register_worker(cls)
 
         return cls
 
