@@ -47,6 +47,20 @@ class Job:
             if value is not None and value.tzinfo is None:
                 setattr(self, key, value.replace(tzinfo=timezone.utc))
 
+    def __str__(self) -> str:
+        worker_parts = self.worker.split(".")
+        worker_name = worker_parts[-1] if worker_parts else self.worker
+
+        parts = [
+            f"id={self.id}",
+            f"worker={worker_name}",
+            f"args={json.dumps(self.args)}",
+            f"queue={self.queue}",
+            f"state={self.state}",
+        ]
+
+        return f"Job({', '.join(parts)})"
+
     @classmethod
     def new(cls, **kwargs) -> Job:
         """Create a new job with validation and normalization.

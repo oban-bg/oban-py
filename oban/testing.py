@@ -132,9 +132,6 @@ async def all_enqueued(*, oban: str | Oban = "oban", **filters) -> list[Job]:
 
     jobs = await oban_instance._query.all_jobs(["available", "scheduled"])
 
-    if not filters:
-        return jobs
-
     return [job for job in jobs if _match_filters(job, filters)]
 
 
@@ -177,9 +174,10 @@ async def assert_enqueued(*, oban: str | Oban = "oban", **filters):
 
     if not matching:
         all_jobs = await all_enqueued(oban=oban)
-        # TODO: Improve the representation of jobs
+        formatted = "\n".join(f"  {job}" for job in all_jobs)
+
         raise AssertionError(
-            f"Expected a job matching: {filters} to be enqueued. Instead found:\n\n{all_jobs}"
+            f"Expected a job matching: {filters} to be enqueued. Instead found:\n\n{formatted}"
         )
 
 

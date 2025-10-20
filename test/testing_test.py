@@ -226,3 +226,22 @@ class TestAssertEnqueued:
         await assert_enqueued(worker=Omega, args={"id": 1})
         await assert_enqueued(worker=Omega, args={"id": 1, "xd": 2})
         await assert_enqueued(worker=Omega, oban="oban")
+
+    @pytest.mark.oban(queues={})
+    async def test_assert_enqueued_raises_on_no_match(self, oban_instance):
+        @worker(queue="alpha")
+        class Alpha:
+            def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue_many(Alpha.new({"id": 1}))
+
+        with pytest.raises(AssertionError) as exc_info:
+            await assert_enqueued(worker=Alpha, args={"id": 999})
+
+        message = str(exc_info.value)
+
+        assert "Expected a job matching" in message
+        assert "worker" in message
+        assert "Job(id=1, worker=Alpha" in message
