@@ -2,7 +2,7 @@ import asyncio
 import pytest
 
 from oban import job, worker
-from oban.testing import assert_enqueued, mode, process_job
+from oban.testing import all_enqueued, assert_enqueued, mode, process_job
 
 
 @worker()
@@ -124,6 +124,81 @@ class TestInlineMode:
             assert job.worker.endswith("InlineWorker")
 
 
+class TestAllEnqueued:
+    @pytest.mark.oban(queues={})
+    async def test_all_enqueued_with_no_filters(self, oban_instance):
+        @worker(queue="alpha")
+        class Alpha:
+            def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue_many(Alpha.new(), Alpha.new({"id": 1}))
+
+        jobs = await all_enqueued()
+
+        assert len(jobs) == 2
+
+    @pytest.mark.oban(queues={})
+    async def test_all_enqueued_with_worker_filter(self, oban_instance):
+        @worker(queue="alpha")
+        class Alpha:
+            def process(self, job):
+                pass
+
+        @worker(queue="omega")
+        class Omega:
+            def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue_many(Alpha.new(), Omega.new(), Alpha.new({"id": 1}))
+
+        jobs = await all_enqueued(worker=Alpha)
+
+        assert len(jobs) == 2
+        assert all(job.worker.endswith("Alpha") for job in jobs)
+
+    @pytest.mark.oban(queues={})
+    async def test_all_enqueued_with_args_filter(self, oban_instance):
+        @worker()
+        class Alpha:
+            def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue_many(
+            Alpha.new({"id": 1}),
+            Alpha.new({"id": 1, "extra": "data"}),
+            Alpha.new({"id": 2}),
+        )
+
+        jobs = await all_enqueued(worker=Alpha, args={"id": 1})
+
+        assert len(jobs) == 2
+        assert all(job.args["id"] == 1 for job in jobs)
+
+    @pytest.mark.oban(queues={})
+    async def test_all_enqueued_returns_descending_order(self, oban_instance):
+        @worker()
+        class Alpha:
+            def process(self, job):
+                pass
+
+        oban = oban_instance()
+
+        await oban.enqueue_many(
+            Alpha.new({"id": 1}), Alpha.new({"id": 2}), Alpha.new({"id": 3})
+        )
+
+        jobs = await all_enqueued(worker=Alpha)
+
+        assert len(jobs) == 3
+        assert jobs[0].args["id"] == 3
+        assert jobs[1].args["id"] == 2
+        assert jobs[2].args["id"] == 1
+
+
 class TestAssertEnqueued:
     @pytest.mark.oban(queues={})
     async def test_assert_enqueued_with_worker(self, oban_instance):
@@ -137,18 +212,17 @@ class TestAssertEnqueued:
             def process(self, job):
                 pass
 
-        with mode("manual"):
-            oban = oban_instance()
-            await oban.enqueue_many(
-                Alpha.new(),
-                Alpha.new({"id": 1, "xd": 1}),
-                Omega.new({"id": 1, "xd": 2}),
-            )
+        oban = oban_instance()
+        await oban.enqueue_many(
+            Alpha.new(),
+            Alpha.new({"id": 1, "xd": 1}),
+            Omega.new({"id": 1, "xd": 2}),
+        )
 
-            await assert_enqueued(worker=Alpha)
-            await assert_enqueued(worker=Alpha, queue="alpha")
-            await assert_enqueued(worker=Omega)
-            await assert_enqueued(worker=Omega, args={})
-            await assert_enqueued(worker=Omega, args={"id": 1})
-            await assert_enqueued(worker=Omega, args={"id": 1, "xd": 2})
-            await assert_enqueued(worker=Omega, oban="oban")
+        await assert_enqueued(worker=Alpha)
+        await assert_enqueued(worker=Alpha, queue="alpha")
+        await assert_enqueued(worker=Omega)
+        await assert_enqueued(worker=Omega, args={})
+        await assert_enqueued(worker=Omega, args={"id": 1})
+        await assert_enqueued(worker=Omega, args={"id": 1, "xd": 2})
+        await assert_enqueued(worker=Omega, oban="oban")

@@ -91,6 +91,53 @@ async def reset_oban(oban: str | Oban = "oban"):
     await oban_instance._query.reset()
 
 
+async def all_enqueued(*, oban: str | Oban = "oban", **filters) -> list[Job]:
+    """Retrieve all currently enqueued jobs matching a set of filters.
+
+    Only jobs matching all of the provided filters will be returned. Additionally,
+    jobs are returned in descending order where the most recently enqueued job will be
+    listed first.
+
+    Args:
+        oban: Oban instance name (default: "oban") or Oban instance
+        **filters: Job fields to match (e.g., worker=EmailWorker, args={"to": "..."},
+                   queue="mailers", priority=5). Args supports partial matching.
+
+    Returns:
+        List of Job instances matching the filters, in descending order by ID
+
+    Example:
+        >>> from oban.testing import all_enqueued
+        >>> from app.workers import EmailWorker
+        >>>
+        >>> # Assert based on only some of a job's args
+        >>> jobs = await all_enqueued(worker=EmailWorker)
+        >>> assert len(jobs) == 1
+        >>> assert jobs[0].args["id"] == 1
+        >>>
+        >>> # Assert that exactly one job was inserted for a queue
+        >>> jobs = await all_enqueued(queue="alpha")
+        >>> assert len(jobs) == 1
+        >>>
+        >>> # Assert that there aren't any jobs enqueued
+        >>> assert await all_enqueued() == []
+    """
+    if isinstance(oban, str):
+        oban_instance = get_instance(oban)
+    else:
+        oban_instance = oban
+
+    if "worker" in filters and not isinstance(filters["worker"], str):
+        filters["worker"] = worker_name(filters["worker"])
+
+    jobs = await oban_instance._query.all_jobs(["available", "scheduled"])
+
+    if not filters:
+        return jobs
+
+    return [job for job in jobs if _match_filters(job, filters)]
+
+
 async def assert_enqueued(*, oban: str | Oban = "oban", **filters):
     """Assert that a job matching the given criteria was enqueued.
 
@@ -126,22 +173,13 @@ async def assert_enqueued(*, oban: str | Oban = "oban", **filters):
         >>> # Use an alternate oban instance
         >>> await assert_enqueued(worker=BatchWorker, oban="batch")
     """
-    if isinstance(oban, str):
-        oban_instance = get_instance(oban)
-    else:
-        oban_instance = oban
-
-    if "worker" in filters and not isinstance(filters["worker"], str):
-        filters["worker"] = worker_name(filters["worker"])
-
-    jobs = await oban_instance._query.all_jobs(["available", "scheduled"])
-
-    matching = [job for job in jobs if _match_filters(job, filters)]
+    matching = await all_enqueued(oban=oban, **filters)
 
     if not matching:
+        all_jobs = await all_enqueued(oban=oban)
         # TODO: Improve the representation of jobs
         raise AssertionError(
-            f"Expected a job matching: {filters} to be enqueued. Instead found:\n\n{jobs}"
+            f"Expected a job matching: {filters} to be enqueued. Instead found:\n\n{all_jobs}"
         )
 
 
