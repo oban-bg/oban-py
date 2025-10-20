@@ -137,6 +137,19 @@ class Oban:
         """
         return self._leader.is_leader
 
+    @property
+    def testing_mode(self) -> str | None:
+        """Get the current testing mode for this instance.
+
+        Returns the testing mode set via oban.testing.mode() context manager.
+
+        Returns:
+            The current testing mode "inline", "manual", or None
+        """
+        from .testing import _get_mode
+
+        return _get_mode()
+
     async def start(self) -> Oban:
         if self._producers:
             await self._verify_structure()
@@ -219,6 +232,15 @@ class Oban:
             >>>
             >>> await oban.enqueue_many(job1, job2, job3)
         """
+        # NOTE: This doesn't belong here in this form, but it will work until we have more `_job`
+        # methods (cancel_job, retry_job, etc) and need a different abstraction.
+        if self.testing_mode == "inline":
+            from .testing import process_job
+
+            for job in jobs:
+                process_job(job)
+            return list(jobs)
+
         result = await self._query.insert_jobs(list(jobs))
 
         queues = {job.queue for job in result if job.state == "available"}

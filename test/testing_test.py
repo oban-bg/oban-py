@@ -1,7 +1,8 @@
+import asyncio
 import pytest
 
 from oban import job, worker
-from oban.testing import process_job
+from oban.testing import assert_enqueued, mode, process_job
 
 
 @worker()
@@ -102,3 +103,22 @@ class TestProcessJob:
 
         with pytest.raises(TypeError):
             process_job(job)
+
+
+class TestInlineMode:
+    @pytest.mark.oban(queues={})
+    async def test_inline_mode_executes_immediately(self, oban_instance):
+        executed = asyncio.Event()
+
+        @worker()
+        class InlineWorker:
+            def process(self, job):
+                executed.set()
+
+        with mode("inline"):
+            oban = oban_instance()
+            job = await oban.enqueue(InlineWorker.new({"value": 42}))
+
+            assert executed.is_set()
+            assert job.args["value"] == 42
+            assert job.worker.endswith("InlineWorker")

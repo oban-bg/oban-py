@@ -3,12 +3,59 @@
 This module provides utilities for unit testing workers without database interaction.
 """
 
+from __future__ import annotations
+
 import json
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from .job import Job
-from ._worker import resolve_worker
+from .oban import get_instance
+from ._worker import resolve_worker, worker_name
+
+if TYPE_CHECKING:
+    from .oban import Oban
+
+_testing_mode: ContextVar[str | None] = ContextVar("oban_testing_mode", default=None)
+
+
+@contextmanager
+def mode(testing_mode: str):
+    """Temporarily set the testing mode for Oban instances.
+
+    This context manager allows you to override the testing mode for all Oban
+    instances within a specific context. Useful for switching modes in individual
+    tests without affecting the entire test suite.
+
+    Args:
+        testing_mode: The mode to set ("inline" or "manual")
+
+    Yields:
+        None
+
+    Example:
+        >>> import oban.testing
+        >>>
+        >>> oban.testing.set_mode("manual")
+        >>>
+        >>> def test_inline_execution():
+        ...     with oban.testing.mode("inline"):
+        ...         # Jobs execute immediately in this context
+        ...         await EmailWorker.enqueue({"to": "user@example.com"})
+    """
+    token = _testing_mode.set(testing_mode)
+
+    try:
+        yield
+    finally:
+        _testing_mode.reset(token)
+
+
+def _get_mode() -> str | None:
+    return _testing_mode.get()
 
 
 def process_job(job: Job):
