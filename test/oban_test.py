@@ -568,6 +568,46 @@ class TestDeleteAllJobs:
             assert await get_job(oban, job_2.id) is None
 
 
+class TestCancelJob:
+    async def test_cancelling_a_scheduled_job(self, oban_instance):
+        async with oban_instance() as oban:
+            job = await Worker.enqueue({"ref": 1}, schedule_in=60)
+
+            await oban.cancel_job(job.id)
+
+            job = await get_job(oban, job.id)
+
+            assert job.state == "cancelled"
+            assert job.cancelled_at is not None
+
+    async def test_cancelling_completed_job_is_ignored(self, oban_instance):
+        async with oban_instance() as oban:
+            job = await Worker.enqueue({"act": "ok", "ref": 1})
+
+            # Manually mark it as completed
+            await oban._query.complete_job(job)
+            await oban.cancel_job(job.id)
+
+            await assert_state(oban, job.id, "completed")
+
+    async def test_cancelling_nonexistent_job(self, oban_instance):
+        async with oban_instance() as oban:
+            await oban.cancel_job(99999)
+
+
+class TestCancelAllJobs:
+    @pytest.mark.oban()
+    async def test_cancelling_multiple_jobs(self, oban_instance):
+        async with oban_instance() as oban:
+            job_1 = await Worker.enqueue()
+            job_2 = await Worker.enqueue()
+
+            await oban.cancel_all_jobs([job_1.id, job_2]) == 2
+
+            await assert_state(oban, job_1.id, "cancelled")
+            await assert_state(oban, job_2.id, "cancelled")
+
+
 class TestScaleQueue:
     @pytest.mark.oban(queues={"alpha": 5})
     async def test_scaling_queue_with_node(self, oban_instance):

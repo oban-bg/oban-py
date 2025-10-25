@@ -370,6 +370,60 @@ class Oban:
 
         return await self._query.delete_all_jobs(job_ids)
 
+    async def cancel_job(self, job: Job | int) -> None:
+        """Cancel a job to prevent it from running.
+
+        Jobs are marked as `cancelled`. Only jobs with the statuses `executing`,
+        `available`, `scheduled`, or `retryable` can be cancelled.
+
+        For `executing` jobs, the database state is updated immediately, but the
+        running task is not forcefully terminated. Workers should check for cancellation
+        and stop gracefully.
+
+        Args:
+            job: A Job instance or job ID to cancel
+
+        Example:
+            Cancel a job by ID:
+
+            >>> await oban.cancel_job(123)
+
+            Cancel a job instance:
+
+            >>> await oban.cancel_job(job)
+        """
+        job_id = job.id if isinstance(job, Job) else job
+        await self.cancel_all_jobs([job_id])
+
+    async def cancel_all_jobs(self, jobs: list[Job | int]) -> int:
+        """Cancel multiple jobs to prevent them from running.
+
+        Jobs are marked as `cancelled`. Only jobs with the statuses `executing`,
+        `available`, `scheduled`, or `retryable` can be cancelled.
+
+        For `executing` jobs, the database state is updated immediately, but
+        running tasks are not forcefully terminated. Workers should check for cancellation
+        and stop gracefully.
+
+        Args:
+            jobs: List of Job instances or job IDs to cancel
+
+        Returns:
+            The number of jobs cancelled
+
+        Example:
+            Cancel multiple jobs by ID:
+
+            >>> count = await oban.cancel_all_jobs([123, 456, 789])
+
+            Cancel multiple job instances:
+
+            >>> count = await oban.cancel_all_jobs([job_1, job_2, job_3])
+        """
+        job_ids = [job.id if isinstance(job, Job) else job for job in jobs]
+
+        return await self._query.cancel_all_jobs(job_ids)
+
     async def pause_queue(self, queue: str, *, node: str | None = None) -> None:
         """Pause a queue, preventing it from executing new jobs.
 

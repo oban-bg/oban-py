@@ -169,6 +169,16 @@ class Query:
 
                 return result.rowcount
 
+    async def cancel_all_jobs(self, ids: list[int]) -> int:
+        async with self._driver.connection() as conn:
+            async with conn.transaction():
+                stmt = load_file("cancel_all_jobs.sql", self._prefix)
+                args = {"ids": ids}
+
+                result = await conn.execute(stmt, args)
+
+                return result.rowcount
+
     async def snooze_job(self, job: Job, seconds: int) -> None:
         async with self._driver.connection() as conn:
             stmt = load_file("snooze_job.sql", self._prefix)
