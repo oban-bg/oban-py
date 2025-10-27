@@ -40,7 +40,6 @@ class Producer:
         self._query = query
         self._queue = queue
 
-        self._executor = Executor(query, safe=True)
         self._init_lock = asyncio.Lock()
         self._last_fetch_time = 0.0
         self._listen_token = None
@@ -189,7 +188,7 @@ class Producer:
     async def _execute(self, job: Job) -> None:
         job._cancellation = asyncio.Event()
 
-        await self._executor.execute(job)
+        await Executor(job=job, safe=True).execute()
 
     async def _on_signal(self, _channel: str, payload: dict) -> None:
         ident = payload.get("ident", "any")

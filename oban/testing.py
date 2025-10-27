@@ -322,9 +322,6 @@ async def drain_queue(
         "scheduled": 0,
     }
 
-    # TODO: This is at the wrong level. We want to wrap the execution of a single job.
-    executor = Executor(oban._query, safe=with_safety)
-
     while True:
         if with_scheduled:
             before = datetime.now(timezone.utc) + _FAR_FUTURE
@@ -336,8 +333,10 @@ async def drain_queue(
             case []:
                 break
             case [job]:
-                state = await executor.execute(job)
-                summary[state] += 1
+                # TODO: We need to run the ack _query
+                executor = await Executor(job=job, safe=with_safety).execute()
+
+                summary[executor.status] += 1
 
         if not with_recursion:
             break
