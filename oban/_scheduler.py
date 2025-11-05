@@ -320,14 +320,15 @@ class Scheduler:
                 if self._is_now(entry)
             ]
 
-            result = await self._query.insert_jobs(jobs)
-            queues = {job.queue for job in result}
+            context.add({"enqueued_count": len(jobs)})
 
-            context.add({"enqueued_count": len(result)})
+            if jobs:
+                result = await self._query.insert_jobs(jobs)
+                queues = {job.queue for job in result}
 
-            await self._notifier.notify(
-                "insert", [{"queue": queue} for queue in queues]
-            )
+                await self._notifier.notify(
+                    "insert", [{"queue": queue} for queue in queues]
+                )
 
     def _is_now(self, entry: ScheduledEntry) -> bool:
         now = datetime.now(entry.timezone or self._timezone)
