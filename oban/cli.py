@@ -5,12 +5,13 @@ import logging
 import signal
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 import click
 from psycopg_pool import AsyncConnectionPool
 
-from oban.config import ObanConfig
+from oban.config import Config
 from oban.schema import install as install_schema, uninstall as uninstall_schema
 from oban.telemetry import logger as telemetry_logger
 
@@ -33,7 +34,7 @@ async def schema_pool(database_url: str) -> AsyncIterator[AsyncConnectionPool]:
     if not database_url:
         raise click.UsageError("--database-url is required (or set OBAN_DATABASE_URL)")
 
-    conf = ObanConfig(database_url=database_url, pool_min_size=1, pool_max_size=1)
+    conf = Config(database_url=database_url, pool_min_size=1, pool_max_size=1)
     pool = await conf.create_pool()
 
     try:
@@ -141,6 +142,11 @@ def uninstall(database_url: str | None, prefix: str) -> None:
 
 @main.command()
 @click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False, path_type=str),
+    help="Path to TOML configuration file (default: searches for oban.toml)",
+)
+@click.option(
     "--database-url",
     envvar="OBAN_DATABASE_URL",
     help="PostgreSQL connection string",
@@ -180,7 +186,7 @@ def uninstall(database_url: str | None, prefix: str) -> None:
     default="INFO",
     help="Logging level (default: INFO)",
 )
-def start(log_level: str, **params: Any) -> None:
+def start(log_level: str, config: str | None, **params: Any) -> None:
     """Start the Oban worker process.
 
     This command starts an Oban instance that processes jobs from the configured queues.
@@ -202,13 +208,19 @@ def start(log_level: str, **params: Any) -> None:
     """
     logging.getLogger().setLevel(getattr(logging, log_level.upper()))
 
-    env_conf = ObanConfig.from_env()
-    cli_conf = ObanConfig.from_cli(params)
+    if config and not Path(config).exists():
+        raise click.UsageError(f"--config file '{config}' doesn't exist")
 
-    conf = env_conf.merge(cli_conf)
+    tml_conf = Config.from_toml(config)
+    env_conf = Config.from_env()
+    cli_conf = Config.from_cli(params)
+
+    conf = tml_conf.merge(env_conf).merge(cli_conf)
 
     if not conf.database_url:
-        raise click.UsageError("--database-url is required (or set OBAN_DATABASE_URL)")
+        raise click.UsageError(
+            "--database-url, OBAN_DATABASE_URL, or database_url in oban.toml required"
+        )
 
     async def run() -> None:
         logger.info("Starting Oban...")

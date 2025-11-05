@@ -270,8 +270,6 @@ class Oban:
 
         return result
 
-    # NOTE: This doesn't belong here in this form, but it will work until we have more `_job`
-    # methods (cancel_job, retry_job, etc) and need a different abstraction.
     async def _execute_inline(self, jobs):
         from .testing import process_job
 

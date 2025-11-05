@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import Any
 
 from psycopg_pool import AsyncConnectionPool
@@ -24,14 +26,14 @@ def _parse_queues(input: str) -> dict[str, int]:
 
 
 @dataclass
-class ObanConfig:
+class Config:
     """Configuration for Oban instances.
 
     Can be used by both CLI and programmatic usage to create Oban instances
     with consistent configuration.
     """
 
-    database_url: str
+    database_url: str | None = None
     queues: dict[str, int] = field(default_factory=dict)
     name: str | None = None
     node: str | None = None
@@ -50,7 +52,7 @@ class ObanConfig:
     pool_max_size: int = 10
 
     @classmethod
-    def from_env(cls) -> ObanConfig:
+    def from_env(cls) -> Config:
         """Load configuration from environment variables.
 
         Supported environment variables:
@@ -72,19 +74,24 @@ class ObanConfig:
         )
 
     @classmethod
-    def from_cli(cls, params: dict[str, Any]) -> ObanConfig:
-        """Load configuration from a a cli dictionary."""
+    def from_cli(cls, params: dict[str, Any]) -> Config:
         if queues := params.pop("queues", None):
             params["queues"] = _parse_queues(queues)
 
         return cls(**params)
 
-    def merge(self, other: ObanConfig) -> ObanConfig:
-        """Merge this config with another, giving precedence to the other config.
+    @classmethod
+    def from_toml(cls, path: str | None = None) -> Config:
+        params = {}
+        path = Path(path or "oban.toml")
 
-        Present values from `other` will override any values in this config.
-        """
+        if path.exists():
+            with open(path, "rb") as file:
+                params = tomllib.load(file)
 
+        return cls(**params)
+
+    def merge(self, other: Config) -> Config:
         def merge_dicts(this, that) -> dict | None:
             if that is None or this is None:
                 return this
@@ -108,7 +115,7 @@ class ObanConfig:
             else:
                 merged[name] = this_val
 
-        return ObanConfig(**merged)
+        return Config(**merged)
 
     async def create_pool(self) -> AsyncConnectionPool:
         pool = AsyncConnectionPool(
