@@ -17,6 +17,8 @@ from ._refresher import Refresher
 from ._scheduler import Scheduler
 from ._stager import Stager
 
+QueueConfig = int | dict[str, Any]
+
 _instances: dict[str, Oban] = {}
 
 
@@ -32,7 +34,7 @@ class Oban:
         notifier: Notifier | None = None,
         prefix: str | None = None,
         pruner: dict[str, Any] = {},
-        queues: dict[str, int] | None = None,
+        queues: dict[str, QueueConfig] | None = None,
         refresher: dict[str, Any] = {},
         scheduler: dict[str, Any] = {},
         stager: dict[str, Any] = {},
@@ -82,9 +84,9 @@ class Oban:
                 node=self._node,
                 notifier=self._notifier,
                 queue=queue,
-                limit=limit,
+                **self._parse_queue_config(queue, config),
             )
-            for queue, limit in queues.items()
+            for queue, config in queues.items()
         }
 
         self._leader = Leader(
@@ -123,6 +125,13 @@ class Oban:
         self._signal_token = None
 
         _instances[self._name] = self
+
+    @staticmethod
+    def _parse_queue_config(queue: str, config: QueueConfig) -> dict[str, Any]:
+        if isinstance(config, int):
+            return {"limit": config}
+        else:
+            return config
 
     async def __aenter__(self) -> Oban:
         return await self.start()

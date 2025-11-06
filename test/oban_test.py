@@ -299,6 +299,15 @@ class TestCheckQueue:
         async with oban_instance() as oban:
             assert oban.check_queue("default") is None
 
+    async def test_queue_with_dict_config_limit_and_paused(self, oban_instance):
+        queues = {"default": {"limit": 10, "paused": True}}
+
+        async with oban_instance(queues=queues) as oban:
+            state = oban.check_queue("default")
+
+            assert state.limit == 10
+            assert state.paused is True
+
 
 class TestCheckAllQueues:
     @pytest.mark.oban(queues={"alpha": 1, "gamma": 2, "delta": 3})

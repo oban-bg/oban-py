@@ -29,8 +29,7 @@ class Producer:
         notifier: Notifier,
         query: Query,
     ) -> None:
-        if limit < 1:
-            raise ValueError(f"Queue '{queue}' limit must be positive")
+        self._validate(queue=queue, limit=limit)
 
         self._debounce_interval = debounce_interval
         self._limit = limit
@@ -50,6 +49,11 @@ class Producer:
         self._running_jobs = {}
         self._started_at = None
         self._uuid = str(uuid4())
+
+    @staticmethod
+    def _validate(*, queue: str, limit: int) -> None:
+        if limit < 1:
+            raise ValueError(f"Queue '{queue}' limit must be positive")
 
     async def start(self) -> None:
         async with self._init_lock:
@@ -105,9 +109,7 @@ class Producer:
         self.notify()
 
     async def scale(self, limit: int) -> None:
-        # TODO: Extract this into a _validate method
-        if limit < 1:
-            raise ValueError(f"Queue '{self._queue}' limit must be positive")
+        self._validate(queue=self._queue, limit=limit)
 
         self._limit = limit
 
