@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from ._query import Query, load_file
+from ._query import Query
 
 
 def install_sql(prefix: str = "public") -> str:
@@ -33,7 +33,7 @@ def install_sql(prefix: str = "public") -> str:
         ...         migrations.RunSQL(install_sql()),
         ...     ]
     """
-    return load_file("install.sql", prefix)
+    return Query._load_file("install.sql", prefix)
 
 
 def uninstall_sql(prefix: str = "public") -> str:
@@ -64,7 +64,7 @@ def uninstall_sql(prefix: str = "public") -> str:
         ...         migrations.RunSQL(uninstall_sql()),
         ...     ]
     """
-    return load_file("uninstall.sql", prefix)
+    return Query._load_file("uninstall.sql", prefix)
 
 
 async def install(conn_or_pool: Any, prefix: str = "public") -> None:

@@ -114,77 +114,6 @@ def register_scheduled(cron: str | dict, worker_cls: type) -> None:
     _scheduled_entries.append(entry)
 
 
-def _replace_aliases(expression: str, aliases: dict[str, str]) -> str:
-    for name, value in aliases.items():
-        expression = expression.replace(name, value)
-
-    return expression
-
-
-def _parse_field(field: str, allowed: set[int]) -> set[int]:
-    parsed = set()
-
-    for part in re.split(r"\s*,\s*", field):
-        parsed.update(_parse_part(part, allowed))
-
-    if not parsed.issubset(allowed):
-        raise ValueError(f"field {field} is out of range: {allowed}")
-
-    return parsed
-
-
-def _parse_part(part: str, allowed: set[int]) -> set[int]:
-    if part == "*":
-        return allowed
-    elif re.match(r"^\d+$", part):
-        return _parse_literal(part)
-    elif re.match(r"^\*\/[1-9]\d?$", part):
-        return _parse_step(part, allowed)
-    elif re.match(r"^\d+(\-\d+)?\/[1-9]\d?$", part):
-        return _parse_range_step(part, allowed)
-    elif re.match(r"^\d+\-\d+$", part):
-        return _parse_range(part, allowed)
-    else:
-        raise ValueError(f"unrecognized expression: {part}")
-
-
-def _parse_literal(part: str) -> set[int]:
-    return {int(part)}
-
-
-def _parse_step(part: str, allowed: set[int]) -> set[int]:
-    step = int(part.replace("*/", ""))
-
-    return set(range(min(allowed), max(allowed) + 1, step))
-
-
-def _parse_range_step(part: str, allowed: set[int]) -> set[int]:
-    range_part, step_value = part.split("/")
-    range_set = _parse_range(range_part, allowed)
-    step_part = f"*/{step_value}"
-
-    return _parse_step(step_part, range_set)
-
-
-def _parse_range(part: str, allowed: set[int]) -> set[int]:
-    match part.split("-"):
-        case [rmin]:
-            rmin = int(rmin)
-            return set(range(rmin, max(allowed) + 1))
-        case [rmin, rmax]:
-            rmin = int(rmin)
-            rmax = int(rmax)
-
-            if rmin > rmax:
-                raise ValueError(
-                    f"min of range ({rmin}) must be less than or equal to max"
-                )
-
-            return set(range(rmin, rmax + 1))
-        case _:
-            raise ValueError(f"unrecognized range: {part}")
-
-
 @dataclass(slots=True, frozen=True)
 class Expression:
     input: str
@@ -193,6 +122,77 @@ class Expression:
     days: set
     months: set
     weekdays: set
+
+    @staticmethod
+    def _replace_aliases(expression: str, aliases: dict[str, str]) -> str:
+        for name, value in aliases.items():
+            expression = expression.replace(name, value)
+
+        return expression
+
+    @staticmethod
+    def _parse_literal(part: str) -> set[int]:
+        return {int(part)}
+
+    @staticmethod
+    def _parse_step(part: str, allowed: set[int]) -> set[int]:
+        step = int(part.replace("*/", ""))
+
+        return set(range(min(allowed), max(allowed) + 1, step))
+
+    @staticmethod
+    def _parse_range(part: str, allowed: set[int]) -> set[int]:
+        match part.split("-"):
+            case [rmin]:
+                rmin = int(rmin)
+                return set(range(rmin, max(allowed) + 1))
+            case [rmin, rmax]:
+                rmin = int(rmin)
+                rmax = int(rmax)
+
+                if rmin > rmax:
+                    raise ValueError(
+                        f"min of range ({rmin}) must be less than or equal to max"
+                    )
+
+                return set(range(rmin, rmax + 1))
+            case _:
+                raise ValueError(f"unrecognized range: {part}")
+
+    @staticmethod
+    def _parse_range_step(part: str, allowed: set[int]) -> set[int]:
+        range_part, step_value = part.split("/")
+        range_set = Expression._parse_range(range_part, allowed)
+        step_part = f"*/{step_value}"
+
+        return Expression._parse_step(step_part, range_set)
+
+    @staticmethod
+    def _parse_part(part: str, allowed: set[int]) -> set[int]:
+        if part == "*":
+            return allowed
+        elif re.match(r"^\d+$", part):
+            return Expression._parse_literal(part)
+        elif re.match(r"^\*\/[1-9]\d?$", part):
+            return Expression._parse_step(part, allowed)
+        elif re.match(r"^\d+(\-\d+)?\/[1-9]\d?$", part):
+            return Expression._parse_range_step(part, allowed)
+        elif re.match(r"^\d+\-\d+$", part):
+            return Expression._parse_range(part, allowed)
+        else:
+            raise ValueError(f"unrecognized expression: {part}")
+
+    @staticmethod
+    def _parse_field(field: str, allowed: set[int]) -> set[int]:
+        parsed = set()
+
+        for part in re.split(r"\s*,\s*", field):
+            parsed.update(Expression._parse_part(part, allowed))
+
+        if not parsed.issubset(allowed):
+            raise ValueError(f"field {field} is out of range: {allowed}")
+
+        return parsed
 
     @classmethod
     def parse(cls, expression: str) -> Expression:
@@ -235,16 +235,16 @@ class Expression:
 
         match re.split(r"\s+", normalized):
             case [min_part, hrs_part, day_part, mon_part, dow_part]:
-                mon_part = _replace_aliases(mon_part, _MON_ALIASES)
-                dow_part = _replace_aliases(dow_part, _DOW_ALIASES)
+                mon_part = cls._replace_aliases(mon_part, _MON_ALIASES)
+                dow_part = cls._replace_aliases(dow_part, _DOW_ALIASES)
 
                 return cls(
                     input=expression,
-                    minutes=_parse_field(min_part, _MIN_SET),
-                    hours=_parse_field(hrs_part, _HRS_SET),
-                    days=_parse_field(day_part, _DAY_SET),
-                    months=_parse_field(mon_part, _MON_SET),
-                    weekdays=_parse_field(dow_part, _DOW_SET),
+                    minutes=cls._parse_field(min_part, _MIN_SET),
+                    hours=cls._parse_field(hrs_part, _HRS_SET),
+                    days=cls._parse_field(day_part, _DAY_SET),
+                    months=cls._parse_field(mon_part, _MON_SET),
+                    weekdays=cls._parse_field(dow_part, _DOW_SET),
                 )
             case _:
                 raise ValueError(f"incorrect number of fields: {expression}")

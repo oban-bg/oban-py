@@ -19,16 +19,6 @@ TIMESTAMP_FIELDS = [
 ]
 
 
-def _handle_schedule_in(params: dict[str, Any]) -> None:
-    if "schedule_in" in params:
-        schedule_in = params.pop("schedule_in")
-
-        if isinstance(schedule_in, (int, float)):
-            schedule_in = timedelta(seconds=schedule_in)
-
-        params["scheduled_at"] = datetime.now(timezone.utc) + schedule_in
-
-
 @dataclass(slots=True)
 class Job:
     worker: str
@@ -50,6 +40,16 @@ class Job:
     discarded_at: datetime | None = None
     scheduled_at: datetime | None = None
     _cancellation: asyncio.Event | None = field(default=None, init=False, repr=False)
+
+    @staticmethod
+    def _handle_schedule_in(params: dict[str, Any]) -> None:
+        if "schedule_in" in params:
+            schedule_in = params.pop("schedule_in")
+
+            if isinstance(schedule_in, (int, float)):
+                schedule_in = timedelta(seconds=schedule_in)
+
+            params["scheduled_at"] = datetime.now(timezone.utc) + schedule_in
 
     def __post_init__(self):
         # Timestamps returned from the database are naive, which prevents comparison against
@@ -120,7 +120,7 @@ class Job:
             >>>
             >>> job = EmailWorker.new({"to": "user@example.com"}, schedule_in=60)
         """
-        _handle_schedule_in(params)
+        cls._handle_schedule_in(params)
 
         job = cls(**params)
         job._normalize_tags()
@@ -152,7 +152,7 @@ class Job:
         Example:
             >>> job.update({"priority": 0, "tags": ["urgent"]})
         """
-        _handle_schedule_in(changes)
+        self._handle_schedule_in(changes)
 
         job = replace(self, **changes)
         job._normalize_tags()

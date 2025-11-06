@@ -50,21 +50,21 @@ UPDATABLE_FIELDS = [
 ]
 
 
-@cache
-def load_file(path: str, prefix: str = "public", apply_prefix: bool = True) -> str:
-    sql = files("oban.queries").joinpath(path).read_text(encoding="utf-8")
-
-    if apply_prefix:
-        return re.sub(
-            r"\b(oban_jobs|oban_leaders|oban_producers|oban_job_state)\b",
-            rf"{prefix}.\1",
-            sql,
-        )
-    else:
-        return sql
-
-
 class Query:
+    @staticmethod
+    @cache
+    def _load_file(path: str, prefix: str = "public", apply_prefix: bool = True) -> str:
+        sql = files("oban.queries").joinpath(path).read_text(encoding="utf-8")
+
+        if apply_prefix:
+            return re.sub(
+                r"\b(oban_jobs|oban_leaders|oban_producers|oban_job_state)\b",
+                rf"{prefix}.\1",
+                sql,
+            )
+        else:
+            return sql
+
     def __init__(self, conn: Any, prefix: str = "public") -> None:
         self._driver = wrap_conn(conn)
         self._prefix = prefix
@@ -74,7 +74,7 @@ class Query:
     async def ack_jobs(self, acks: [AckAction]) -> None:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("ack_jobs.sql", self._prefix)
+                stmt = self._load_file("ack_jobs.sql", self._prefix)
                 args = {
                     field: [getattr(ack, field) for ack in acks]
                     for field in ACKABLE_FIELDS
@@ -84,7 +84,7 @@ class Query:
 
     async def all_jobs(self, states: list[str]) -> list[Job]:
         async with self._driver.connection() as conn:
-            stmt = load_file("all_jobs.sql", self._prefix)
+            stmt = self._load_file("all_jobs.sql", self._prefix)
 
             async with conn.cursor(row_factory=class_row(Job)) as cur:
                 await cur.execute(stmt, {"states": states})
@@ -93,7 +93,7 @@ class Query:
     async def cancel_many_jobs(self, ids: list[int]) -> tuple[int, list[int]]:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("cancel_many_jobs.sql", self._prefix)
+                stmt = self._load_file("cancel_many_jobs.sql", self._prefix)
                 args = {"ids": ids}
 
                 result = await conn.execute(stmt, args)
@@ -106,7 +106,7 @@ class Query:
     async def delete_many_jobs(self, ids: list[int]) -> int:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("delete_many_jobs.sql", self._prefix)
+                stmt = self._load_file("delete_many_jobs.sql", self._prefix)
                 args = {"ids": ids}
 
                 result = await conn.execute(stmt, args)
@@ -115,7 +115,7 @@ class Query:
 
     async def get_job(self, job_id: int) -> Job:
         async with self._driver.connection() as conn:
-            stmt = load_file("get_job.sql", self._prefix)
+            stmt = self._load_file("get_job.sql", self._prefix)
 
             async with conn.cursor(row_factory=class_row(Job)) as cur:
                 await cur.execute(stmt, (job_id,))
@@ -127,7 +127,7 @@ class Query:
     ) -> list[Job]:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("fetch_jobs.sql", self._prefix)
+                stmt = self._load_file("fetch_jobs.sql", self._prefix)
                 args = {"queue": queue, "demand": demand, "attempted_by": [node, uuid]}
 
                 async with conn.cursor(row_factory=class_row(Job)) as cur:
@@ -137,7 +137,7 @@ class Query:
 
     async def insert_jobs(self, jobs: list[Job]) -> list[Job]:
         async with self._driver.connection() as conn:
-            stmt = load_file("insert_jobs.sql", self._prefix)
+            stmt = self._load_file("insert_jobs.sql", self._prefix)
             args = defaultdict(list)
 
             for job in jobs:
@@ -163,7 +163,7 @@ class Query:
     async def prune_jobs(self, max_age: int, limit: int) -> int:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("prune_jobs.sql", self._prefix)
+                stmt = self._load_file("prune_jobs.sql", self._prefix)
                 args = {"max_age": max_age, "limit": limit}
 
                 result = await conn.execute(stmt, args)
@@ -173,7 +173,7 @@ class Query:
     async def rescue_jobs(self) -> int:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("rescue_jobs.sql", self._prefix)
+                stmt = self._load_file("rescue_jobs.sql", self._prefix)
 
                 result = await conn.execute(stmt)
 
@@ -182,7 +182,7 @@ class Query:
     async def retry_many_jobs(self, ids: list[int]) -> int:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("retry_many_jobs.sql", self._prefix)
+                stmt = self._load_file("retry_many_jobs.sql", self._prefix)
                 args = {"ids": ids}
 
                 result = await conn.execute(stmt, args)
@@ -194,7 +194,7 @@ class Query:
     ) -> tuple[int, list[str]]:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("stage_jobs.sql", self._prefix)
+                stmt = self._load_file("stage_jobs.sql", self._prefix)
                 args = {"limit": limit, "queues": queues, "before": before}
 
                 result = await conn.execute(stmt, args)
@@ -206,7 +206,7 @@ class Query:
     async def update_many_jobs(self, jobs: list[Job]) -> list[Job]:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                stmt = load_file("update_job.sql", self._prefix)
+                stmt = self._load_file("update_job.sql", self._prefix)
                 args = defaultdict(list)
 
                 for job in jobs:
@@ -242,14 +242,16 @@ class Query:
     ) -> bool:
         async with self._driver.connection() as conn:
             async with conn.transaction():
-                cleanup_stmt = load_file("cleanup_expired_leaders.sql", self._prefix)
+                cleanup_stmt = self._load_file(
+                    "cleanup_expired_leaders.sql", self._prefix
+                )
 
                 await conn.execute(cleanup_stmt)
 
                 if is_leader:
-                    elect_stmt = load_file("reelect_leader.sql", self._prefix)
+                    elect_stmt = self._load_file("reelect_leader.sql", self._prefix)
                 else:
-                    elect_stmt = load_file("elect_leader.sql", self._prefix)
+                    elect_stmt = self._load_file("elect_leader.sql", self._prefix)
 
                 args = {"name": name, "node": node, "ttl": ttl}
                 rows = await conn.execute(elect_stmt, args)
@@ -259,7 +261,7 @@ class Query:
 
     async def resign_leader(self, name: str, node: str) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("resign_leader.sql", self._prefix)
+            stmt = self._load_file("resign_leader.sql", self._prefix)
             args = {"name": name, "node": node}
 
             await conn.execute(stmt, args)
@@ -268,25 +270,25 @@ class Query:
 
     async def install(self) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("install.sql", self._prefix)
+            stmt = self._load_file("install.sql", self._prefix)
 
             await conn.execute(stmt)
 
     async def reset(self) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("reset.sql", self._prefix)
+            stmt = self._load_file("reset.sql", self._prefix)
 
             await conn.execute(stmt)
 
     async def uninstall(self) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("uninstall.sql", self._prefix)
+            stmt = self._load_file("uninstall.sql", self._prefix)
 
             await conn.execute(stmt)
 
     async def verify_structure(self) -> list[str]:
         async with self._driver.connection() as conn:
-            stmt = load_file("verify_structure.sql", apply_prefix=False)
+            stmt = self._load_file("verify_structure.sql", apply_prefix=False)
             args = {"prefix": self._prefix}
             rows = await conn.execute(stmt, args)
             results = await rows.fetchall()
@@ -297,7 +299,7 @@ class Query:
 
     async def cleanup_expired_producers(self, max_age: float) -> int:
         async with self._driver.connection() as conn:
-            stmt = load_file("cleanup_expired_producers.sql", self._prefix)
+            stmt = self._load_file("cleanup_expired_producers.sql", self._prefix)
             args = {"max_age": max_age}
 
             result = await conn.execute(stmt, args)
@@ -306,7 +308,7 @@ class Query:
 
     async def delete_producer(self, uuid: str) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("delete_producer.sql", self._prefix)
+            stmt = self._load_file("delete_producer.sql", self._prefix)
             args = {"uuid": uuid}
 
             await conn.execute(stmt, args)
@@ -315,7 +317,7 @@ class Query:
         self, uuid: str, name: str, node: str, queue: str, meta: dict[str, Any]
     ) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("insert_producer.sql", self._prefix)
+            stmt = self._load_file("insert_producer.sql", self._prefix)
             args = {
                 "uuid": uuid,
                 "name": name,
@@ -328,7 +330,7 @@ class Query:
 
     async def refresh_producers(self, uuids: list[str]) -> int:
         async with self._driver.connection() as conn:
-            stmt = load_file("refresh_producers.sql", self._prefix)
+            stmt = self._load_file("refresh_producers.sql", self._prefix)
             args = {"uuids": uuids}
 
             result = await conn.execute(stmt, args)
@@ -337,7 +339,7 @@ class Query:
 
     async def update_producer(self, uuid: str, meta: dict[str, Any]) -> None:
         async with self._driver.connection() as conn:
-            stmt = load_file("update_producer.sql", self._prefix)
+            stmt = self._load_file("update_producer.sql", self._prefix)
             args = {"uuid": uuid, "meta": json.dumps(meta)}
 
             await conn.execute(stmt, args)

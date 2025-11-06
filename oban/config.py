@@ -1,5 +1,3 @@
-"""Configuration management for Oban CLI and programmatic usage."""
-
 from __future__ import annotations
 
 import os
@@ -11,18 +9,6 @@ from typing import Any
 from psycopg_pool import AsyncConnectionPool
 
 from oban import Oban
-
-
-def _parse_queues(input: str) -> dict[str, int]:
-    if not input:
-        return {}
-
-    return {
-        name.strip(): int(limit.strip())
-        for line in input.split(",")
-        if line.strip() and ":" in line
-        for name, limit in [line.split(":", 1)]
-    }
 
 
 @dataclass
@@ -51,6 +37,18 @@ class Config:
     pool_min_size: int = 1
     pool_max_size: int = 10
 
+    @staticmethod
+    def _parse_queues(input: str) -> dict[str, int]:
+        if not input:
+            return {}
+
+        return {
+            name.strip(): int(limit.strip())
+            for line in input.split(",")
+            if line.strip() and ":" in line
+            for name, limit in [line.split(":", 1)]
+        }
+
     @classmethod
     def from_env(cls) -> Config:
         """Load configuration from environment variables.
@@ -66,7 +64,7 @@ class Config:
         """
         return cls(
             database_url=os.getenv("OBAN_DATABASE_URL"),
-            queues=_parse_queues(os.getenv("OBAN_QUEUES", "")),
+            queues=cls._parse_queues(os.getenv("OBAN_QUEUES", "")),
             node=os.getenv("OBAN_NODE"),
             prefix=os.getenv("OBAN_PREFIX", "public"),
             pool_min_size=int(os.getenv("OBAN_POOL_MIN_SIZE", "1")),
@@ -76,7 +74,7 @@ class Config:
     @classmethod
     def from_cli(cls, params: dict[str, Any]) -> Config:
         if queues := params.pop("queues", None):
-            params["queues"] = _parse_queues(queues)
+            params["queues"] = cls._parse_queues(queues)
 
         return cls(**params)
 
