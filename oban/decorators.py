@@ -27,7 +27,7 @@ def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
     Args:
         oban: Name of the Oban instance to use (default: "oban")
         cron: Optional cron configuration for periodic execution. Can be:
-              - A string expression (e.g., "0 0 * * *" or "@daily")
+              - A string expression (e.g., "0 0 \* \* \*" or "@daily")
               - A dict with "expr" and optional "timezone" keys (timezone as string)
         **overrides: Configuration options for the worker (queue, priority, etc.)
 
@@ -93,10 +93,10 @@ def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
         ...         return 2 * job.attempt
 
     Note:
-        The worker class must implement a `process(self, job: Job) -> Result[Any]` method.
+        The worker class must implement a ``process(self, job: Job) -> Result[Any]`` method.
         If not implemented, a NotImplementedError will be raised when called.
 
-        Optionally implement a `backoff(self, job: Job) -> int` method to customize
+        Optionally implement a ``backoff(self, job: Job) -> int`` method to customize
         retry delays. If not provided, uses Oban's default jittery clamped backoff.
     """
 
@@ -142,13 +142,13 @@ def job(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
 
     The decorated function's signature is preserved for new() and enqueue().
 
-     Use @job for simple function-based tasks where you don't need access to
-     job metadata such as the attempt, past errors.
+    Use @job for simple function-based tasks where you don't need access to
+    job metadata such as the attempt, past errors.
 
     Args:
         oban: Name of the Oban instance to use (default: "oban")
         cron: Optional cron configuration for periodic execution. Can be:
-              - A string expression (e.g., "0 0 * * *" or "@daily")
+              - A string expression (e.g., "0 0 \* \* \*" or "@daily")
               - A dict with "expr" and optional "timezone" keys (timezone as string)
         **overrides: Configuration options (queue, priority, etc.)
 

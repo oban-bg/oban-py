@@ -31,23 +31,25 @@ class JobState(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class QueueInfo:
-    """Information about a queue's runtime state.
-
-    Attributes:
-        limit: The concurrency limit for this queue
-        node: The node name where this queue is running
-        paused: Whether the queue is currently paused
-        queue: The queue name
-        running: List of currently executing job IDs
-        started_at: When the queue was started
-    """
+    """Information about a queue's runtime state."""
 
     limit: int
+    """The concurrency limit for this queue"""
+
     node: str
+    """The node name where this queue is running"""
+
     paused: bool
+    """Whether the queue is currently paused"""
+
     queue: str
+    """The queue name"""
+
     running: list[int]
+    """List of currently executing job IDs"""
+
     started_at: datetime
+    """When the queue was started"""
 
 
 # Return Types
