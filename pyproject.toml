@@ -19,6 +19,7 @@ oban = "oban.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
+    "pytest-benchmark>=5.2.3",
     "ruff>=0.9.9",
     "ty>=0.0.1a25",
 ]
@@ -41,4 +42,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 markers = [
     "oban: configure Oban instance options for a test",
+    "benchmark: mark test as a benchmark (deselect with '-m \"not benchmark\"')",
 ]
+addopts = "-m 'not benchmark'"

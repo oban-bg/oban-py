@@ -1,4 +1,4 @@
-.PHONY: format check fix test ci docs docs-serve docs-clean help
+.PHONY: format check fix test bench ci docs docs-serve docs-clean help
 
 help:
 	@echo "Available targets:"
@@ -7,6 +7,7 @@ help:
 	@echo "  fix         - Fix linting issues automatically"
 	@echo "  format      - Format code with ruff"
 	@echo "  test        - Run tests with pytest"
+	@echo "  bench       - Run benchmarks with pytest-benchmark"
 	@echo "  docs        - Build HTML documentation"
 	@echo "  docs-serve  - Serve documentation locally on port 8000"
 	@echo "  docs-clean  - Clean built documentation"
@@ -26,6 +27,9 @@ format:
 
 test:
 	uv run pytest
+
+bench:
+	uv run pytest -m benchmark --benchmark-only
 
 docs:
 	uv run --group docs sphinx-build -b html docs docs/_build
