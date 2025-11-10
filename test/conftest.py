@@ -4,9 +4,8 @@ import pytest_asyncio
 import psycopg
 import uvloop
 
-from psycopg_pool import AsyncConnectionPool
-
 from oban import Oban
+from oban.config import Config
 from oban.schema import install
 from oban.testing import reset_oban
 
@@ -38,9 +37,7 @@ async def test_database(request):
         if not exists:
             conn.execute(f'CREATE DATABASE "{dbname}"')
 
-            async with AsyncConnectionPool(
-                conninfo=db_url, max_size=1, open=False
-            ) as pool:
+            async with Config(dsn=db_url, pool_max_size=1).create_pool() as pool:
                 await install(pool)
 
     yield db_url
@@ -51,14 +48,11 @@ async def oban_instance(request, test_database):
     mark = request.node.get_closest_marker("oban")
     mark_kwargs = mark.kwargs if mark else {}
 
-    pool = AsyncConnectionPool(conninfo=test_database, min_size=2, open=False)
-
-    await pool.open()
-    await pool.wait()
+    pool = await Config(dsn=test_database, pool_min_size=2, pool_max_size=10).create_pool()
 
     instances = []
 
-    def _create_instance(**overrides):
+    def create_instance(**overrides):
         params = {"pool": pool, "leadership": False, "stager": {"interval": 0.01}}
         oban = Oban(**{**params, **mark_kwargs, **overrides})
 
@@ -66,7 +60,7 @@ async def oban_instance(request, test_database):
 
         return oban
 
-    yield _create_instance
+    yield create_instance
 
     for oban in instances:
         await reset_oban(oban)
