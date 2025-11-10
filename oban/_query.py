@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from collections import defaultdict
 from dataclasses import replace
@@ -10,7 +9,7 @@ from importlib.resources import files
 from typing import Any
 
 from psycopg.rows import class_row
-from psycopg.types.json import Json
+from psycopg.types.json import Jsonb
 
 from ._driver import wrap_conn
 from ._executor import AckAction
@@ -73,7 +72,7 @@ class Query:
     @staticmethod
     def _cast_type(field: str, value: Any) -> Any:
         if field in JSON_FIELDS and value is not None:
-            return Json(value)
+            return Jsonb(value)
 
         # Ensure timestamps are written as UTC rather than being implicitly cast to the current
         # timezone. The database uses `TIMESTAMP WITHOUT TIME ZONE` and the value is automatically
@@ -343,7 +342,7 @@ class Query:
                 "name": name,
                 "node": node,
                 "queue": queue,
-                "meta": json.dumps(meta),
+                "meta": Jsonb(meta),
             }
 
             await conn.execute(stmt, args)
@@ -360,7 +359,7 @@ class Query:
     async def update_producer(self, uuid: str, meta: dict[str, Any]) -> None:
         async with self._driver.connection() as conn:
             stmt = self._load_file("update_producer.sql", self._prefix)
-            args = {"uuid": uuid, "meta": json.dumps(meta)}
+            args = {"uuid": uuid, "meta": Jsonb(meta)}
 
             await conn.execute(stmt, args)
 
@@ -370,5 +369,5 @@ class Query:
         async with self._driver.connection() as conn:
             await conn.execute(
                 "SELECT pg_notify(%s, payload) FROM json_array_elements_text(%s::json) AS payload",
-                (channel, json.dumps(payloads)),
+                (channel, Jsonb(payloads)),
             )

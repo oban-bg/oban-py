@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import click
+import orjson
+from psycopg.types.json import set_json_dumps, set_json_loads
 from psycopg_pool import AsyncConnectionPool
 
 from oban import __version__
@@ -233,20 +235,11 @@ def start(log_level: str, config: str | None, **params: Any) -> None:
     """
     logging.getLogger().setLevel(getattr(logging, log_level.upper()))
 
-    if config and not Path(config).exists():
-        raise click.UsageError(f"--config file '{config}' doesn't exist")
+    set_json_dumps(orjson.dumps)
+    set_json_loads(orjson.loads)
 
-    tml_conf = Config.from_toml(config)
-    env_conf = Config.from_env()
-    cli_conf = Config.from_cli(params)
-
-    conf = tml_conf.merge(env_conf).merge(cli_conf)
+    conf = _load_conf(config, params)
     node = conf.node or socket.gethostname()
-
-    if not conf.database_url:
-        raise click.UsageError(
-            "--database-url, OBAN_DATABASE_URL, or database_url in oban.toml required"
-        )
 
     async def run() -> None:
         print_banner(__version__)
@@ -284,6 +277,24 @@ def start(log_level: str, config: str | None, **params: Any) -> None:
             logger.info("Shutdown complete")
 
     asyncio_run(run())
+
+
+def _load_conf(conf_path: str | None, params: Any) -> Config:
+    if conf_path and not Path(conf_path).exists():
+        raise click.UsageError(f"--config file '{conf_path}' doesn't exist")
+
+    tml_conf = Config.from_toml(conf_path)
+    env_conf = Config.from_env()
+    cli_conf = Config.from_cli(params)
+
+    all_conf = tml_conf.merge(env_conf).merge(cli_conf)
+
+    if not all_conf.database_url:
+        raise click.UsageError(
+            "--database-url, OBAN_DATABASE_URL, or database_url in oban.toml required"
+        )
+
+    return all_conf
 
 
 if __name__ == "__main__":

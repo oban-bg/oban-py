@@ -1,6 +1,7 @@
-import json
 import logging
 from typing import Any, List
+
+import orjson
 
 from . import core
 
@@ -51,7 +52,7 @@ class _LoggerHandler:
     def _handle_event(self, name: str, meta: dict[str, Any]) -> None:
         data = self._format_event(name, meta)
         level = self._get_level(name)
-        message = json.dumps(data)
+        message = orjson.dumps(data).decode()
 
         self.logger.log(level, message)
 

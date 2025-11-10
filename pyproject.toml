@@ -11,6 +11,7 @@ dependencies = [
   "pytest-asyncio>=1.2.0",
   "uvloop>=0.21.0",
   "click>=8.1.0",
+  "orjson>=3.11.4",
 ]
 
 [project.scripts]

@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import gzip
-import json
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 from uuid import uuid4
 
+import orjson
 from psycopg import AsyncConnection, OperationalError
 
 from ._backoff import jittery_exponential
@@ -28,7 +28,7 @@ def encode_payload(payload: dict) -> str:
     Returns:
         Base64-encoded gzipped JSON string
     """
-    dumped = json.dumps(payload).encode("utf-8")
+    dumped = orjson.dumps(payload)
     zipped = gzip.compress(dumped)
 
     return base64.b64encode(zipped).decode("ascii")
@@ -47,12 +47,12 @@ def decode_payload(payload: str) -> dict:
     """
     # Payloads created by SQL queries won't be encoded or compressed.
     if payload.startswith("{"):
-        return json.loads(payload)
+        return orjson.loads(payload)
     else:
         decoded = base64.b64decode(payload)
         unzipped = gzip.decompress(decoded)
 
-        return json.loads(unzipped.decode("utf-8"))
+        return orjson.loads(unzipped.decode("utf-8"))
 
 
 @runtime_checkable

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
-
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
+
+import orjson
 
 from .types import JobState
 
@@ -66,7 +66,7 @@ class Job:
         parts = [
             f"id={self.id}",
             f"worker={worker_name}",
-            f"args={json.dumps(self.args)}",
+            f"args={orjson.dumps(self.args)}",
             f"queue={self.queue}",
             f"state={self.state}",
         ]
