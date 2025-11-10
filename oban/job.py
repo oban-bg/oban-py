@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -198,49 +198,3 @@ class Job:
             return False
 
         return self._cancellation.is_set()
-
-    def to_dict(self) -> dict:
-        """Convert the job to a dictionary suitable for database storage.
-
-        This method serializes the Job instance into a dictionary format that can be
-        stored in the database. It handles JSON encoding of complex fields and normalizes
-        timestamps to UTC without timezone information.
-
-        Returns:
-            A dictionary with all job fields, where:
-                - args, meta, errors, and tags are JSON-encoded strings
-                - Timestamps are converted to naive UTC datetimes
-                - All other fields are preserved as-is
-
-        Note:
-            This is primarily used internally by Oban for database operations.
-            The database uses `TIMESTAMP WITHOUT TIME ZONE`, so timezone-aware
-            datetimes are converted to UTC and stripped of timezone info to prevent
-            implicit timezone conversion by the database.
-
-        Example:
-            >>> job = Job.new(
-            ...     worker="myapp.workers.EmailWorker",
-            ...     args={"to": "user@example.com"},
-            ...     queue="mailers"
-            ... )
-            >>> job_dict = job.to_dict()
-            >>> job_dict["args"]  # JSON string
-            '{"to": "user@example.com"}'
-        """
-        data = asdict(self)
-
-        data["args"] = json.dumps(data["args"])
-        data["meta"] = json.dumps(data["meta"])
-        data["errors"] = json.dumps(data["errors"])
-        data["tags"] = json.dumps(data["tags"])
-        data["attempted_by"] = data["attempted_by"]
-
-        # Ensure timestamps are written as UTC rather than being implicitly cast to the current
-        # timezone. The database uses `TIMESTAMP WITHOUT TIME ZONE` and the value is automatically
-        # shifted when the zone is present.
-        for key in TIMESTAMP_FIELDS:
-            if data[key] is not None and data[key].tzinfo is not None:
-                data[key] = data[key].astimezone(timezone.utc).replace(tzinfo=None)
-
-        return data

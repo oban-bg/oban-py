@@ -67,8 +67,10 @@ class Executor:
             self._traceback = traceback.format_exc()
 
     def _record_stopped(self) -> None:
+        # This is largely for type checking, as executing an unpersisted job wouldn't happen
+        # during actual job processing.
         if self.job.id is None:
-            raise RuntimeError("cannot record stopped job without an id")
+            self.job.id = 0
 
         match self.result:
             case Exception() as error:

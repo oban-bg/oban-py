@@ -4,7 +4,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import cache
 from importlib.resources import files
 from typing import Any
@@ -14,7 +14,7 @@ from psycopg.types.json import Json
 
 from ._driver import wrap_conn
 from ._executor import AckAction
-from .job import Job
+from .job import Job, TIMESTAMP_FIELDS
 
 ACKABLE_FIELDS = [
     "id",
@@ -38,6 +38,10 @@ INSERTABLE_FIELDS = [
     "tags",
     "worker",
 ]
+
+# The `Job` class has errors, but we only insert a single `error` at one time.
+JSON_FIELDS = ["args", "error", "errors", "meta", "tags"]
+
 
 UPDATABLE_FIELDS = [
     "args",
@@ -66,6 +70,19 @@ class Query:
         else:
             return sql
 
+    @staticmethod
+    def _cast_type(field: str, value: Any) -> Any:
+        if field in JSON_FIELDS and value is not None:
+            return Json(value)
+
+        # Ensure timestamps are written as UTC rather than being implicitly cast to the current
+        # timezone. The database uses `TIMESTAMP WITHOUT TIME ZONE` and the value is automatically
+        # shifted when the zone is present.
+        if field in TIMESTAMP_FIELDS and value is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+        return value
+
     def __init__(self, conn: Any, prefix: str = "public") -> None:
         self._driver = wrap_conn(conn)
         self._prefix = prefix
@@ -73,19 +90,15 @@ class Query:
     # Jobs
 
     async def ack_jobs(self, acks: list[AckAction]) -> None:
-        def json_wrap(field, value) -> None | Json:
-            if field in ("error", "meta") and value is not None:
-                return Json(value)
-            else:
-                return value
-
         async with self._driver.connection() as conn:
             async with conn.transaction():
                 stmt = self._load_file("ack_jobs.sql", self._prefix)
                 args = {}
 
                 for field in ACKABLE_FIELDS:
-                    values = [json_wrap(field, getattr(ack, field)) for ack in acks]
+                    values = [
+                        self._cast_type(field, getattr(ack, field)) for ack in acks
+                    ]
 
                     args[field] = values
 
@@ -150,11 +163,10 @@ class Query:
             args = defaultdict(list)
 
             for job in jobs:
-                data = job.to_dict()
                 for key in INSERTABLE_FIELDS:
-                    args[key].append(data[key])
+                    args[key].append(self._cast_type(key, getattr(job, key)))
 
-            result = await conn.execute(stmt, dict(args))
+            result = await conn.execute(stmt, args)
             rows = await result.fetchall()
 
             return [
@@ -219,11 +231,10 @@ class Query:
                 args = defaultdict(list)
 
                 for job in jobs:
-                    data = job.to_dict()
                     args["ids"].append(job.id)
 
                     for key in UPDATABLE_FIELDS:
-                        args[key].append(data[key])
+                        args[key].append(self._cast_type(key, getattr(job, key)))
 
                 result = await conn.execute(stmt, dict(args))
                 rows = await result.fetchall()
