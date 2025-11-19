@@ -7,7 +7,7 @@ from typing import Any
 
 import orjson
 
-from .types import JobState
+from .types import JobState, UniqueField, UniqueGroup, UniqueOptions
 
 TIMESTAMP_FIELDS = [
     "inserted_at",
@@ -17,6 +17,17 @@ TIMESTAMP_FIELDS = [
     "discarded_at",
     "scheduled_at",
 ]
+
+DEFAULT_UNIQUE = {
+    "period": None,
+    "fields": ["queue", "worker", "args"],
+    "keys": None,
+    "group": "all",
+}
+
+
+UNIQUE_FIELDS = {elem.value for elem in UniqueField}
+UNIQUE_GROUPS = {elem.value for elem in UniqueGroup}
 
 
 @dataclass(slots=True)
@@ -39,6 +50,10 @@ class Job:
     completed_at: datetime | None = None
     discarded_at: datetime | None = None
     scheduled_at: datetime | None = None
+
+    # Virtual
+    conflicted: bool = False
+    unique: bool | UniqueOptions | None = None
     _cancellation: asyncio.Event | None = field(default=None, init=False, repr=False)
 
     @staticmethod
@@ -95,6 +110,8 @@ class Job:
                 - schedule_in: Alternative to scheduled_at. Timedelta or seconds from now
                 - tags: List of tags for filtering/grouping
                 - meta: Arbitrary metadata dictionary
+                - unique: Uniqueness constraints. Can be True (use defaults), a dict with
+                         options (period, fields, keys, group), or None (no uniqueness)
 
         Returns:
             A validated and normalized Job instance
@@ -124,6 +141,7 @@ class Job:
 
         job = cls(**params)
         job._normalize_tags()
+        job._normalize_unique()
         job._validate()
 
         return job
@@ -160,24 +178,6 @@ class Job:
 
         return job
 
-    def _normalize_tags(self) -> None:
-        self.tags = sorted(
-            {str(tag).strip().lower() for tag in self.tags if tag and str(tag).strip()}
-        )
-
-    def _validate(self) -> None:
-        if not self.queue.strip():
-            raise ValueError("queue must not be blank")
-
-        if not self.worker.strip():
-            raise ValueError("worker must not be blank")
-
-        if self.max_attempts <= 0:
-            raise ValueError("max_attempts must be greater than 0")
-
-        if not (0 <= self.priority <= 9):
-            raise ValueError("priority must be between 0 and 9")
-
     def cancelled(self) -> bool:
         """Check if cancellation has been requested for this job.
 
@@ -198,3 +198,52 @@ class Job:
             return False
 
         return self._cancellation.is_set()
+
+    def _normalize_tags(self) -> None:
+        self.tags = sorted(
+            {str(tag).strip().lower() for tag in self.tags if tag and str(tag).strip()}
+        )
+
+    def _normalize_unique(self) -> None:
+        if self.unique is None:
+            return
+
+        if self.unique is True:
+            self.unique = {}
+
+        self.unique = {
+            key: self.unique.get(key, val) for (key, val) in DEFAULT_UNIQUE.items()
+        }
+
+    def _validate(self) -> None:
+        if not self.queue.strip():
+            raise ValueError("queue must not be blank")
+
+        if not self.worker.strip():
+            raise ValueError("worker must not be blank")
+
+        if self.max_attempts <= 0:
+            raise ValueError("max_attempts must be greater than 0")
+
+        if not (0 <= self.priority <= 9):
+            raise ValueError("priority must be between 0 and 9")
+
+        if isinstance(self.unique, dict):
+            self._validate_unique()
+
+    def _validate_unique(self) -> None:
+        if fields := self.unique.get("fields", None):
+            if invalid := set(fields) - UNIQUE_FIELDS:
+                raise ValueError(f"invalid unique fields: {invalid}")
+
+        if group := self.unique.get("group", None):
+            if group not in UNIQUE_GROUPS:
+                raise ValueError(f"invalid unique group: {group}")
+
+        if keys := self.unique.get("keys", None):
+            if not isinstance(keys, list):
+                raise ValueError(f"invalid unique keys: {keys}")
+
+        if period := self.unique.get("period", None):
+            if not isinstance(period, int):
+                raise ValueError(f"invalid unique period: {period}")

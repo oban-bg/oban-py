@@ -39,9 +39,7 @@ class Worker:
 
 
 class TestEnqueue:
-    async def test_jobs_created_with_new_are_inserted_into_database(
-        self, oban_instance
-    ):
+    async def test_jobs_are_inserted_into_database(self, oban_instance):
         async with oban_instance() as oban:
             job = Worker.new({"ref": 1})
 
@@ -54,6 +52,16 @@ class TestEnqueue:
             assert job.worker == "test.oban_test.Worker"
             assert job.state == "available"
 
+    async def test_inserting_unique_jobs_results_in_conflict(self, oban_instance):
+        async with oban_instance() as oban:
+            job_1 = Worker.new({"ref": 1}, unique={"keys": ["ref"]})
+            job_2 = Worker.new({"ref": 1}, unique={"keys": ["ref"]})
+
+            job_1 = await oban.enqueue(job_1)
+            job_2 = await oban.enqueue(job_1)
+
+            assert not job_1.conflicted
+            assert job_2.conflicted
 
 class TestEnqueueMany:
     async def test_multiple_jobs_are_inserted_into_database(self, oban_instance):
