@@ -85,21 +85,28 @@ class Producer:
 
     async def stop(self) -> None:
         async with self._init_lock:
-            if self._listen_token:
-                await self._notifier.unlisten(self._listen_token)
+            if not self._listen_token or not self._loop_task:
+                return
 
-            if self._loop_task:
-                self._loop_task.cancel()
+            await self._notifier.unlisten(self._listen_token)
 
-                running_tasks = [task for (_job, task) in self._running_jobs.values()]
+            self._loop_task.cancel()
 
-                await asyncio.gather(
-                    self._loop_task,
-                    *running_tasks,
-                    return_exceptions=True,
+            running_tasks = [task for (_job, task) in self._running_jobs.values()]
+
+            await asyncio.gather(
+                self._loop_task,
+                *running_tasks,
+                return_exceptions=True,
+            )
+
+            try:
+                await self._query.delete_producer(self._uuid)
+            except Exception:
+                logger.debug(
+                    "Failed to delete producer %s during shutdown, will be cleaned up asynchronously",
+                    self._uuid,
                 )
-
-            await self._query.delete_producer(self._uuid)
 
     def notify(self) -> None:
         self._notified.set()

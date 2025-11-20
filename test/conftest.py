@@ -52,7 +52,9 @@ async def oban_instance(request, test_dsn):
     mark = request.node.get_closest_marker("oban")
     mark_kwargs = mark.kwargs if mark else {}
 
-    pool = await Config(dsn=test_dsn, pool_min_size=2, pool_max_size=10, pool_timeout=1.0).create_pool()
+    pool = await Config(
+        dsn=test_dsn, pool_min_size=2, pool_max_size=10, pool_timeout=0.5
+    ).create_pool()
 
     instances = []
 
