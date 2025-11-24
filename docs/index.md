@@ -14,6 +14,7 @@ observable, and loaded with enterprise grade features.
 
 installation
 quickstart
+defining_queues
 api
 cli
 ```
