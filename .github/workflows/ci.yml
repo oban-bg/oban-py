@@ -13,12 +13,24 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pair:
+              python: '3.12'
+              postgres: '14-alpine'
+          - pair:
+              python: '3.14'
+              postgres: '18-alpine'
+            lint: lint
+
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:${{ matrix.pair.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -38,7 +50,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ matrix.pair.python }}
 
       - name: Install uv
         run: |
@@ -51,21 +63,24 @@ jobs:
           path: |
             ~/.cache/uv
             .venv
-          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          key: ${{ runner.os }}-uv-${{ matrix.pair.python }}-${{ hashFiles('uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-uv-
+            ${{ runner.os }}-uv-${{ matrix.pair.python }}-
 
       - name: Install dependencies
         run: uv sync
 
       - name: Run linting
         run: uv run ruff check
+        if: ${{ matrix.lint }}
 
       - name: Run formatting check
         run: uv run ruff format --check
+        if: ${{ matrix.lint }}
 
       - name: Run type checking
         run: uv run ty check
+        if: ${{ matrix.lint }}
 
       - name: Run tests
         env:
