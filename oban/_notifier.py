@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import gzip
+import inspect
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
@@ -298,7 +299,7 @@ class PostgresNotifier:
         if channel in self._subscriptions:
             for callback in self._subscriptions[channel].values():
                 try:
-                    if asyncio.iscoroutinefunction(callback):
+                    if inspect.iscoroutinefunction(callback):
                         asyncio.create_task(callback(channel, payload))
                     else:
                         callback(channel, payload)

@@ -7,9 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
   "psycopg>=3.2.5",
   "psycopg-pool>=3.2.6",
-  "pydantic>=2.11.9",
   "pytest-asyncio>=1.2.0",
-  "uvloop>=0.21.0",
+  "uvloop>=0.22.0",
   "click>=8.1.0",
   "orjson>=3.11.4",
 ]
@@ -47,3 +46,6 @@ markers = [
     "benchmark: mark test as a benchmark (deselect with '-m \"not benchmark\"')",
 ]
 addopts = "-m 'not benchmark'"
+filterwarnings = [
+    "ignore:'asyncio.AbstractEventLoopPolicy' is deprecated:DeprecationWarning",
+]
