@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from . import telemetry
 from ._executor import Executor
+from ._extensions import get_ext
 from .job import Job
 
 if TYPE_CHECKING:
@@ -16,6 +17,30 @@ if TYPE_CHECKING:
     from ._query import Query
 
 logger = logging.getLogger(__name__)
+
+
+def _default_validate(*, queue: str, limit: int, **extra) -> None:
+    if not isinstance(queue, str):
+        raise TypeError(f"queue must be a string, got {queue}")
+    if not queue.strip():
+        raise ValueError("queue must not be blank")
+
+    if limit < 1:
+        raise ValueError(f"Queue '{queue}' limit must be positive")
+
+
+async def _default_get_jobs(producer: Producer) -> list[Job]:
+    demand = producer._limit - len(producer._running_jobs)
+
+    if demand > 0:
+        return await producer._query.fetch_jobs(
+            demand=demand,
+            queue=producer._queue,
+            node=producer._node,
+            uuid=producer._uuid,
+        )
+    else:
+        return []
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,10 +78,10 @@ class Producer:
         node: str,
         notifier: Notifier,
         query: Query,
+        **extra,
     ) -> None:
-        self._validate(queue=queue, limit=limit)
-
         self._debounce_interval = debounce_interval
+        self._extra = extra
         self._limit = limit
         self._name = name
         self._node = node
@@ -64,6 +89,8 @@ class Producer:
         self._paused = paused
         self._query = query
         self._queue = queue
+
+        self._validate()
 
         self._init_lock = asyncio.Lock()
         self._last_fetch_time = 0.0
@@ -75,15 +102,13 @@ class Producer:
         self._started_at = None
         self._uuid = str(uuid4())
 
-    @staticmethod
-    def _validate(*, queue: str, limit: int) -> None:
-        if not isinstance(queue, str):
-            raise TypeError(f"queue must be a string, got {queue}")
-        if not queue.strip():
-            raise ValueError("queue must not be blank")
+    def _validate(self, **opts) -> None:
+        validate = get_ext("validate_producer", _default_validate)
 
-        if limit < 1:
-            raise ValueError(f"Queue '{queue}' limit must be positive")
+        params = {"queue": self._queue, "limit": self._limit, **self._extra}
+        merged = {**params, **opts}
+
+        validate(**merged)
 
     async def start(self) -> None:
         async with self._init_lock:
@@ -146,7 +171,7 @@ class Producer:
         self.notify()
 
     async def scale(self, limit: int) -> None:
-        self._validate(queue=self._queue, limit=limit)
+        self._validate(limit=limit)
 
         self._limit = limit
 
@@ -155,10 +180,6 @@ class Producer:
         self.notify()
 
     def check(self) -> QueueInfo:
-        """Get the current state of this producer.
-
-        Returns a QueueInfo with the producer's configuration and runtime state.
-        """
         return QueueInfo(
             limit=self._limit,
             node=self._node,
@@ -180,21 +201,28 @@ class Producer:
             self._notified.clear()
 
             try:
+                await self._debounce()
                 await self._produce()
             except asyncio.CancelledError:
                 break
             except Exception:
                 logger.exception("Error in producer for queue %s", self._queue)
 
+    async def _debounce(self) -> None:
+        now = asyncio.get_event_loop().time()
+        elapsed = now - self._last_fetch_time
+
+        if elapsed < self._debounce_interval:
+            await asyncio.sleep(self._debounce_interval - elapsed)
+
+        self._last_fetch_time = asyncio.get_event_loop().time()
+
     async def _produce(self) -> None:
-        await self._debounce_fetch()
-
-        demand = self._limit - len(self._running_jobs)
-
-        if self._paused or demand <= 0:
+        if self._paused:
             return
 
-        jobs = await self._fetch_jobs(demand)
+        _ack = await self._ack_jobs()
+        jobs = await self._get_jobs()
 
         for job in jobs:
             task = asyncio.create_task(self._execute(job))
@@ -204,17 +232,8 @@ class Producer:
 
             self._running_jobs[job.id] = (job, task)
 
-    async def _debounce_fetch(self) -> None:
-        now = asyncio.get_event_loop().time()
-        elapsed = now - self._last_fetch_time
-
-        if elapsed < self._debounce_interval:
-            await asyncio.sleep(self._debounce_interval - elapsed)
-
-        self._last_fetch_time = asyncio.get_event_loop().time()
-
-    async def _fetch_jobs(self, demand: int):
-        with telemetry.span("oban.producer.fetch", {"queue": self._queue}) as context:
+    async def _ack_jobs(self):
+        with telemetry.span("oban.producer.ack", {"queue": self._queue}) as context:
             if self._pending_acks:
                 acked_ids = await self._query.ack_jobs(self._pending_acks)
                 acked_set = set(acked_ids)
@@ -222,15 +241,17 @@ class Producer:
                 self._pending_acks = [
                     ack for ack in self._pending_acks if ack.id not in acked_set
                 ]
+            else:
+                acked_ids = []
 
-            jobs = await self._query.fetch_jobs(
-                demand=demand,
-                queue=self._queue,
-                node=self._node,
-                uuid=self._uuid,
-            )
+            context.add({"count": len(acked_ids)})
 
-            context.add({"fetched_count": len(jobs), "demand": demand})
+    async def _get_jobs(self):
+        with telemetry.span("oban.producer.get", {"queue": self._queue}) as context:
+            get_jobs = get_ext("get_jobs", _default_get_jobs)
+            jobs = await get_jobs(self)
+
+            context.add({"count": len(jobs)})
 
             return jobs
 

@@ -16,29 +16,31 @@ async def all_producers(conn):
 
 
 class TestProducerValidation:
-    def test_valid_config_passes(self):
-        Producer._validate(queue="default", limit=10)
+    def validate(self, **opts):
+        base = {"name": "Oban", "node": "worker", "notifier": None, "query": None}
+
+        Producer(**base, **opts)
 
     def test_limit_must_be_positive(self):
         with pytest.raises(ValueError, match="limit must be positive"):
-            Producer._validate(queue="default", limit=0)
+            self.validate(queue="default", limit=0)
 
         with pytest.raises(ValueError, match="limit must be positive"):
-            Producer._validate(queue="default", limit=-1)
+            self.validate(queue="default", limit=-1)
 
     def test_queue_must_be_string(self):
         with pytest.raises(TypeError, match="queue must be a string"):
-            Producer._validate(queue=123, limit=10)
+            self.validate(queue=123, limit=10)
 
         with pytest.raises(TypeError, match="queue must be a string"):
-            Producer._validate(queue=None, limit=10)
+            self.validate(queue=None, limit=10)
 
     def test_queue_must_not_be_blank(self):
         with pytest.raises(ValueError, match="queue must not be blank"):
-            Producer._validate(queue="", limit=10)
+            self.validate(queue="", limit=10)
 
         with pytest.raises(ValueError, match="queue must not be blank"):
-            Producer._validate(queue="   ", limit=10)
+            self.validate(queue="   ", limit=10)
 
 
 class TestProducerTracking:
@@ -92,7 +94,7 @@ class TestProducerTelemetry:
         def handler(_name, meta):
             calls.put_nowait(meta)
 
-        telemetry.attach("test-producer", ["oban.producer.fetch.stop"], handler)
+        telemetry.attach("test-producer", ["oban.producer.get.stop"], handler)
 
         async with oban_instance() as oban:
             await oban.enqueue_many(SimpleWorker.new(), SimpleWorker.new())
@@ -100,7 +102,6 @@ class TestProducerTelemetry:
             meta = await asyncio.wait_for(calls.get(), timeout=1.0)
 
         assert meta["queue"] == "default"
-        assert meta["demand"] == 5
-        assert meta["fetched_count"] == 2
+        assert meta["count"] == 2
 
         telemetry.detach("test-producer")
