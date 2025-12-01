@@ -137,9 +137,16 @@ class Producer:
             if not self._listen_token or not self._loop_task:
                 return
 
-            await self._notifier.unlisten(self._listen_token)
-
             self._loop_task.cancel()
+
+            await self._notifier.unlisten(self._listen_token)
+            await self._query.update_producer(
+                uuid=self._uuid,
+                meta={
+                    "paused": True,
+                    "shutdown_started_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
             running_tasks = [task for (_job, task) in self._running_jobs.values()]
 
