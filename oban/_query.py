@@ -308,10 +308,10 @@ class Query:
                     elect_stmt = self._load_file("elect_leader.sql", self._prefix)
 
                 args = {"name": name, "node": node, "ttl": ttl}
-                rows = await conn.execute(elect_stmt, args)
-                result = await rows.fetchone()
+                result = await conn.execute(elect_stmt, args)
+                rows = await result.fetchone()
 
-                return result is not None and result[0] == node
+                return rows is not None and rows[0] == node
 
     async def resign_leader(self, name: str, node: str) -> None:
         async with self._pool.connection() as conn:

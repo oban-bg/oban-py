@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from . import telemetry
 from ._executor import Executor
-from ._extensions import get_ext
+from ._extensions import use_ext
 from .job import Job
 
 if TYPE_CHECKING:
@@ -19,7 +19,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _default_validate(*, queue: str, limit: int, **extra) -> None:
+def _init(producer: Producer) -> dict:
+    return {"local_limit": producer._limit, "paused": producer._paused}
+
+
+def _validate(*, queue: str, limit: int, **extra) -> None:
     if not isinstance(queue, str):
         raise TypeError(f"queue must be a string, got {queue}")
     if not queue.strip():
@@ -29,7 +33,7 @@ def _default_validate(*, queue: str, limit: int, **extra) -> None:
         raise ValueError(f"Queue '{queue}' limit must be positive")
 
 
-async def _default_get_jobs(producer: Producer) -> list[Job]:
+async def _get_jobs(producer: Producer) -> list[Job]:
     demand = producer._limit - len(producer._running_jobs)
 
     if demand > 0:
@@ -103,12 +107,10 @@ class Producer:
         self._uuid = str(uuid4())
 
     def _validate(self, **opts) -> None:
-        validate = get_ext("validate_producer", _default_validate)
-
         params = {"queue": self._queue, "limit": self._limit, **self._extra}
         merged = {**params, **opts}
 
-        validate(**merged)
+        use_ext("producer.validate", _validate, **merged)
 
     async def start(self) -> None:
         async with self._init_lock:
@@ -119,7 +121,7 @@ class Producer:
                 name=self._name,
                 node=self._node,
                 queue=self._queue,
-                meta={"local_limit": self._limit, "paused": self._paused},
+                meta=use_ext("producer.init", _init, self),
             )
 
             self._listen_token = await self._notifier.listen(
@@ -218,7 +220,7 @@ class Producer:
         self._last_fetch_time = asyncio.get_event_loop().time()
 
     async def _produce(self) -> None:
-        if self._paused:
+        if self._paused or (self._limit - len(self._running_jobs)) <= 0:
             return
 
         _ack = await self._ack_jobs()
@@ -248,8 +250,7 @@ class Producer:
 
     async def _get_jobs(self):
         with telemetry.span("oban.producer.get", {"queue": self._queue}) as context:
-            get_jobs = get_ext("get_jobs", _default_get_jobs)
-            jobs = await get_jobs(self)
+            jobs = await use_ext("producer.get_jobs", _get_jobs, self)
 
             context.add({"count": len(jobs)})
 
