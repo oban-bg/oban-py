@@ -11,3 +11,4 @@ wheels/
 
 # Documentation builds
 docs/_build/
+docs/pro_*.md

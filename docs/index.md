@@ -32,6 +32,9 @@ job_maintenance
 testing
 ```
 
+```{include} pro_toc.md
+```
+
 ```{toctree}
 :maxdepth: 2
 :caption: Reference
