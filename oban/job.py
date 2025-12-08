@@ -28,6 +28,7 @@ class JobState(StrEnum):
     - EXECUTING: Currently running
     - RETRYABLE: Failed but will be retried
     - SCHEDULED: Scheduled to run in the future
+    - SUSPENDED: Not currently runnable
     """
 
     AVAILABLE = "available"
@@ -37,6 +38,7 @@ class JobState(StrEnum):
     EXECUTING = "executing"
     RETRYABLE = "retryable"
     SCHEDULED = "scheduled"
+    SUSPENDED = "suspended"
 
 
 T = TypeVar("T")
