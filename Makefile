@@ -56,13 +56,13 @@ docs-clean:
 	rm -f docs/pro_*.md
 
 db-setup:
-	@createdb $(TEST_DB) 2>/dev/null || true
+	@psql $(DSN_BASE)/postgres -c "CREATE DATABASE $(TEST_DB)" 2>/dev/null || true
 	@uv run oban install --dsn $(TEST_DSN)
 
 db-reset:
-	@dropdb --if-exists $(TEST_DB)
+	@psql $(DSN_BASE)/postgres -c "DROP DATABASE IF EXISTS $(TEST_DB)"
 	@$(MAKE) db-setup
 
 db-teardown:
 	@uv run oban uninstall --dsn $(TEST_DSN)
-	@dropdb --if-exists $(TEST_DB)
+	@psql $(DSN_BASE)/postgres -c "DROP DATABASE IF EXISTS $(TEST_DB)"
