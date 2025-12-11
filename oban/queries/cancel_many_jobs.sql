@@ -5,7 +5,7 @@ WITH locked_jobs AS (
     oban_jobs
   WHERE
     id = ANY(%(ids)s)
-    AND state IN ('executing', 'available', 'scheduled', 'retryable')
+    AND state IN ('executing', 'available', 'scheduled', 'retryable', 'suspended')
   FOR UPDATE
 ),
 updated_jobs AS (
