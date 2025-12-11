@@ -2,7 +2,7 @@ import pytest
 
 from datetime import datetime, timedelta, timezone
 
-from oban import telemetry, worker
+from oban import job, telemetry, worker
 from oban._executor import Executor
 
 
@@ -98,3 +98,16 @@ class TestExecutorTelemetry:
             await Executor(job, safe=False).execute()
 
         assert "oban.job.exception" in calls
+
+class TestExecutorCurrentJob:
+    async def test_getting_current_job_from_context(self):
+        current_job = None
+
+        @job()
+        def echo(_arg):
+            nonlocal current_job
+            current_job = Executor.current_job()
+
+        await Executor(echo.new(123)).execute()
+
+        assert current_job

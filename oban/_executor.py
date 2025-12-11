@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import traceback
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -14,6 +15,8 @@ from .job import Cancel, Record, Snooze
 
 if TYPE_CHECKING:
     from .job import Job
+
+_current_job: ContextVar[Job | None] = ContextVar("oban_current_job", default=None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +45,10 @@ class Executor:
         self._start_time = time.monotonic_ns()
         self._traceback = None
 
+    @staticmethod
+    def current_job() -> Job | None:
+        return _current_job.get()
+
     async def execute(self) -> Executor:
         self._report_started()
         await self._process()
@@ -63,12 +70,16 @@ class Executor:
         )
 
     async def _process(self) -> None:
+        token = _current_job.set(self.job)
+
         try:
             self.worker = resolve_worker(self.job.worker)()
             self.result = await self.worker.process(self.job)
         except Exception as error:
             self.result = error
             self._traceback = traceback.format_exc()
+        finally:
+            _current_job.reset(token)
 
     def _record_stopped(self) -> None:
         # This is largely for type checking, as executing an unpersisted job wouldn't happen
