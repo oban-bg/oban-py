@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ._notifier import Notifier
     from ._query import Query
 
-_DOW_ALIASES = {
+DOW_ALIASES = {
     "MON": "1",
     "TUE": "2",
     "WED": "3",
@@ -26,7 +26,7 @@ _DOW_ALIASES = {
     "SUN": "7",
 }
 
-_MON_ALIASES = {
+MON_ALIASES = {
     "JAN": "1",
     "FEB": "2",
     "MAR": "3",
@@ -41,13 +41,13 @@ _MON_ALIASES = {
     "DEC": "12",
 }
 
-_MIN_SET = frozenset(range(0, 60))
-_HRS_SET = frozenset(range(0, 24))
-_DAY_SET = frozenset(range(1, 32))
-_MON_SET = frozenset(range(1, 13))
-_DOW_SET = frozenset(range(1, 8))
+MIN_SET = frozenset(range(0, 60))
+HRS_SET = frozenset(range(0, 24))
+DAY_SET = frozenset(range(1, 32))
+MON_SET = frozenset(range(1, 13))
+DOW_SET = frozenset(range(1, 8))
 
-_NICKNAMES = {
+NICKNAMES = {
     "@annually": "0 0 1 1 *",
     "@yearly": "0 0 1 1 *",
     "@monthly": "0 0 1 * *",
@@ -231,20 +231,20 @@ class Expression:
             >>> Expression.parse("0 9-17 * * MON-FRI") # 9am-5pm on weekdays
             >>> Expression.parse("@hourly") # Every hour
         """
-        normalized = _NICKNAMES.get(expression, expression)
+        normalized = NICKNAMES.get(expression, expression)
 
         match re.split(r"\s+", normalized):
             case [min_part, hrs_part, day_part, mon_part, dow_part]:
-                mon_part = cls._replace_aliases(mon_part, _MON_ALIASES)
-                dow_part = cls._replace_aliases(dow_part, _DOW_ALIASES)
+                mon_part = cls._replace_aliases(mon_part, MON_ALIASES)
+                dow_part = cls._replace_aliases(dow_part, DOW_ALIASES)
 
                 return cls(
                     input=expression,
-                    minutes=cls._parse_field(min_part, _MIN_SET),
-                    hours=cls._parse_field(hrs_part, _HRS_SET),
-                    days=cls._parse_field(day_part, _DAY_SET),
-                    months=cls._parse_field(mon_part, _MON_SET),
-                    weekdays=cls._parse_field(dow_part, _DOW_SET),
+                    minutes=cls._parse_field(min_part, MIN_SET),
+                    hours=cls._parse_field(hrs_part, HRS_SET),
+                    days=cls._parse_field(day_part, DAY_SET),
+                    months=cls._parse_field(mon_part, MON_SET),
+                    weekdays=cls._parse_field(dow_part, DOW_SET),
                 )
             case _:
                 raise ValueError(f"incorrect number of fields: {expression}")

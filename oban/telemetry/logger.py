@@ -5,7 +5,7 @@ import orjson
 
 from . import core
 
-_EVENTS = [
+EVENTS = [
     "oban.job.start",
     "oban.job.stop",
     "oban.job.exception",
@@ -27,7 +27,7 @@ _EVENTS = [
     "oban.producer.fetch.exception",
 ]
 
-_JOB_FIELDS = [
+JOB_FIELDS = [
     "id",
     "worker",
     "queue",
@@ -65,7 +65,7 @@ class _LoggerHandler:
     def _format_job_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         job = meta.get("job")
 
-        data = {field: getattr(job, field) for field in _JOB_FIELDS}
+        data = {field: getattr(job, field) for field in JOB_FIELDS}
         data["event"] = name
 
         match name:
@@ -133,7 +133,7 @@ def attach(
         >>> oban.telemetry.logger.attach()
     """
     handler = _LoggerHandler(level=level, logger=logger)
-    events = events or _EVENTS
+    events = events or EVENTS
 
     core.attach("oban-logger", events, handler._handle_event)
 

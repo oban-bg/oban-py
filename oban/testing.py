@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
 
-_FAR_FUTURE = timedelta(365 * 100)
+FAR_FUTURE = timedelta(365 * 100)
 
 
 @contextmanager
@@ -324,7 +324,7 @@ async def drain_queue(
 
     while True:
         if with_scheduled:
-            before = datetime.now(timezone.utc) + _FAR_FUTURE
+            before = datetime.now(timezone.utc) + FAR_FUTURE
             await oban._query.stage_jobs(limit=1000, queues=[queue], before=before)
 
         match await oban._query.fetch_jobs(

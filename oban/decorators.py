@@ -15,7 +15,7 @@ from .job import Job, Result
 from ._scheduler import register_scheduled
 from ._worker import register_worker, worker_name
 
-_JOB_FIELDS = set(Job.__dataclass_fields__.keys()) - {"extra"} | {"schedule_in"}
+JOB_FIELDS = set(Job.__dataclass_fields__.keys()) - {"extra"} | {"schedule_in"}
 
 
 def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
@@ -114,7 +114,7 @@ def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
         def new(cls, args: dict[str, Any] | None = None, /, **params) -> Job:
             merged = {**cls._opts, **params}
             extras = {
-                key: merged.pop(key) for key in list(merged) if key not in _JOB_FIELDS
+                key: merged.pop(key) for key in list(merged) if key not in JOB_FIELDS
             }
 
             if extras:
