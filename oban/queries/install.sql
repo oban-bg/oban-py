@@ -110,3 +110,7 @@ ALTER TABLE oban_jobs SET (
   -- Leave headroom on pages for locality and fewer page splits
   fillfactor = 85
 );
+
+-- Version
+
+COMMENT ON TABLE oban_jobs IS '1';
