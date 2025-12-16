@@ -4,10 +4,15 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from . import telemetry
+from ._extensions import use_ext
 
 if TYPE_CHECKING:
     from ._leader import Leader
     from ._query import Query
+
+
+async def _noop(_query: Query) -> None:
+    pass
 
 
 class Lifeline:
@@ -64,3 +69,5 @@ class Lifeline:
             rescued = await self._query.rescue_jobs()
 
             context.add({"rescued_count": rescued})
+
+        await use_ext("lifeline.rescue", _noop, self._query)

@@ -23,6 +23,25 @@ def _init(producer: Producer) -> dict:
     return {"local_limit": producer._limit, "paused": producer._paused}
 
 
+def _pause(producer: Producer) -> dict:
+    producer._paused = True
+
+    return {"paused": True}
+
+
+def _resume(producer: Producer) -> dict:
+    producer._paused = False
+
+    return {"paused": False}
+
+
+def _scale(producer: Producer, **kwargs: Any) -> dict:
+    if "limit" in kwargs:
+        producer._limit = kwargs["limit"]
+
+    return {"local_limit": producer._limit}
+
+
 def _validate(*, queue: str, limit: int, **extra) -> None:
     if not isinstance(queue, str):
         raise TypeError(f"queue must be a string, got {queue}")
@@ -176,23 +195,23 @@ class Producer:
         self._notified.set()
 
     async def pause(self) -> None:
-        self._paused = True
+        meta = use_ext("producer.pause", _pause, self)
 
-        await self._query.update_producer(uuid=self._uuid, meta={"paused": True})
+        await self._query.update_producer(uuid=self._uuid, meta=meta)
 
     async def resume(self) -> None:
-        self._paused = False
+        meta = use_ext("producer.resume", _resume, self)
 
-        await self._query.update_producer(uuid=self._uuid, meta={"paused": False})
+        await self._query.update_producer(uuid=self._uuid, meta=meta)
 
         self.notify()
 
-    async def scale(self, limit: int) -> None:
-        self._validate(limit=limit)
+    async def scale(self, **kwargs: Any) -> None:
+        self._validate(**kwargs)
 
-        self._limit = limit
+        meta = use_ext("producer.scale", _scale, self, **kwargs)
 
-        await self._query.update_producer(uuid=self._uuid, meta={"local_limit": limit})
+        await self._query.update_producer(uuid=self._uuid, meta=meta)
 
         self.notify()
 

@@ -688,6 +688,7 @@ class Oban:
             ... )
         """
         instances = []
+
         for job in jobs:
             if isinstance(job, Job):
                 instances.append(job)
@@ -964,7 +965,7 @@ class Oban:
             await producer.stop()
 
     async def scale_queue(
-        self, *, queue: str, limit: int, node: str | None = None
+        self, *, queue: str, node: str | None = None, **kwargs: Any
     ) -> None:
         """Scale the concurrency for a queue.
 
@@ -972,8 +973,9 @@ class Oban:
 
         Args:
             queue: The name of the queue to scale
-            limit: The new concurrency limit
             node: Specific node name to scale the queue on. If not provided, scales across all nodes.
+            **kwargs: Options passed through transparently, including:
+                limit: The new concurrency limit
 
         Example:
             Scale a queue up, triggering immediate execution of queued jobs:
@@ -989,14 +991,14 @@ class Oban:
             >>> await oban.scale_queue(queue="default", limit=10, node="worker.1")
         """
         if not node or node == self._node:
-            await self._scale_queue_local(queue, limit)
+            await self._scale_queue_local(queue, **kwargs)
 
         if node != self._node:
             ident = self._scope_signal(node)
 
             await self._notifier.notify(
                 "signal",
-                {"action": "scale", "queue": queue, "limit": limit, "ident": ident},
+                {"action": "scale", "queue": queue, "ident": ident, **kwargs},
             )
 
     @staticmethod
@@ -1009,11 +1011,11 @@ class Oban:
             case _:
                 raise ValueError("Cannot retry a job that has not been enqueued")
 
-    async def _scale_queue_local(self, queue: str, limit: int) -> None:
+    async def _scale_queue_local(self, queue: str, **kwargs: Any) -> None:
         producer = self._producers.get(queue)
 
         if producer:
-            await producer.scale(limit)
+            await producer.scale(**kwargs)
 
     def _scope_signal(self, node: str | None) -> str:
         if node is not None:
