@@ -41,11 +41,6 @@ bench:
 	uv run pytest -m benchmark --benchmark-only
 
 docs:
-	@if [ -d "../oban-py-pro/docs" ]; then \
-		for src in ../oban-py-pro/docs/*.md; do \
-			cp "$$src" "docs/pro_$$(basename $$src)"; \
-		done; \
-	fi
 	uv run --group docs sphinx-build -b html docs docs/_build
 
 docs-serve: docs
@@ -54,7 +49,6 @@ docs-serve: docs
 
 docs-clean:
 	rm -rf docs/_build
-	rm -f docs/pro_*.md
 
 docs-publish: docs
 	$(eval VERSION := $(shell grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/'))
