@@ -34,6 +34,7 @@ class Oban:
         self,
         *,
         pool: Any,
+        dispatcher: Any = None,
         leadership: bool | None = None,
         lifeline: dict[str, Any] = {},
         name: str | None = None,
@@ -75,6 +76,7 @@ class Oban:
         if leadership is None:
             leadership = bool(queues)
 
+        self._dispatcher = dispatcher
         self._name = name or "oban"
         self._node = node or socket.gethostname()
         self._prefix = prefix or "public"
@@ -86,6 +88,7 @@ class Oban:
 
         self._producers = {
             queue: Producer(
+                dispatcher=self._dispatcher,
                 query=self._query,
                 name=self._name,
                 node=self._node,
@@ -244,6 +247,9 @@ class Oban:
         if self._producers:
             await self._verify_structure()
 
+        if self._dispatcher:
+            await self._dispatcher.start()
+
         tasks = [
             self._notifier.start(),
             self._leader.start(),
@@ -307,6 +313,9 @@ class Oban:
             tasks.append(producer.stop())
 
         await asyncio.gather(*tasks)
+
+        if self._dispatcher:
+            await self._dispatcher.stop()
 
     async def _verify_structure(self) -> None:
         existing = await self._query.verify_structure()
@@ -936,6 +945,7 @@ class Oban:
             return
 
         producer = Producer(
+            dispatcher=self._dispatcher,
             query=self._query,
             name=self._name,
             node=self._node,

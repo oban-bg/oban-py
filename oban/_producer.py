@@ -66,8 +66,9 @@ async def _get_jobs(producer: Producer) -> list[Job]:
         return []
 
 
-def _dispatch(producer: Producer, job: Job) -> asyncio.Task:
-    return asyncio.create_task(producer._execute(job))
+class LocalDispatcher:
+    def dispatch(self, producer: Producer, job: Job) -> asyncio.Task:
+        return asyncio.create_task(producer._execute(job))
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +102,7 @@ class Producer:
         self,
         *,
         debounce_interval: float = 0.005,
+        dispatcher: Any = None,
         limit: int = 10,
         paused: bool = False,
         queue: str = "default",
@@ -111,6 +113,7 @@ class Producer:
         **extra,
     ) -> None:
         self._debounce_interval = debounce_interval
+        self._dispatcher = dispatcher or LocalDispatcher()
         self._extra = extra
         self._limit = limit
         self._name = name
@@ -266,7 +269,7 @@ class Producer:
         jobs = await self._get_jobs()
 
         for job in jobs:
-            task = use_ext("producer.dispatch", _dispatch, self, job)
+            task = self._dispatcher.dispatch(self, job)
             task.add_done_callback(
                 lambda _, job_id=job.id: self._on_job_complete(job_id)
             )

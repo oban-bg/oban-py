@@ -141,11 +141,14 @@ class Config:
 
         return pool
 
-    async def create_oban(self, pool: AsyncConnectionPool | None = None) -> Oban:
+    async def create_oban(
+        self, pool: AsyncConnectionPool | None = None, dispatcher: Any = None
+    ) -> Oban:
         pool = pool or await self.create_pool()
 
         params: dict[str, Any] = {
             "pool": pool,
+            "dispatcher": dispatcher,
             "name": self.name,
             "prefix": self.prefix,
             "queues": self.queues,
