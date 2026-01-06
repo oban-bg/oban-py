@@ -54,15 +54,14 @@ docs-clean:
 docs-publish: docs
 	$(eval VERSION := $(shell grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/'))
 	@echo "Publishing docs for oban-py v$(VERSION)..."
-	@cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='.*' *
-	@printf '{"package":"py","version":"$(VERSION)","docs_tar":"' > /tmp/oban-py-payload.json
-	@base64 < /tmp/oban-py-docs.tar.gz | tr -d '\n' >> /tmp/oban-py-payload.json
-	@printf '","notes":"Documentation update"}' >> /tmp/oban-py-payload.json
+	@cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='.*' .
 	@curl -s -X POST "$(API_BASE)/releases" \
 		-H "Authorization: Bearer $$LYS_API_KEY" \
-		-H "Content-Type: application/json" \
-		-d @/tmp/oban-py-payload.json
-	@rm -f /tmp/oban-py-docs.tar.gz /tmp/oban-py-payload.json
+		-F "package=py" \
+		-F "version=$(VERSION)" \
+		-F "docs_tar=@/tmp/oban-py-docs.tar.gz" \
+		-F "notes=Documentation update"
+	@rm -f /tmp/oban-py-docs.tar.gz
 
 db-setup:
 	@psql $(DSN_BASE)/postgres -c "CREATE DATABASE $(TEST_DB)" 2>/dev/null || true
