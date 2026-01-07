@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._backoff import jittery_clamped
+from ._extensions import use_ext
 from ._worker import resolve_worker
 from .job import Cancel, Record, Snooze
 
@@ -87,7 +88,11 @@ class Executor:
         if self.job.id is None:
             self.job.id = 0
 
-        match self.result:
+        result = use_ext(
+            "executor.wrap_result", lambda _job, res: res, self.job, self.result
+        )
+
+        match result:
             case Exception() as error:
                 if self.job.attempt >= self.job.max_attempts:
                     self.action = AckAction(

@@ -11,9 +11,10 @@ import inspect
 from functools import wraps
 from typing import Any, Callable
 
-from .job import Job, Result
-from ._scheduler import register_scheduled
+from ._extensions import use_ext
 from ._worker import register_worker, worker_name
+from ._scheduler import register_scheduled
+from .job import Job, Result
 
 JOB_FIELDS = set(Job.__dataclass_fields__.keys()) - {"extra"} | {"schedule_in"}
 
@@ -138,6 +139,8 @@ def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
         setattr(cls, "enqueue", enqueue)
 
         register_worker(cls)
+
+        use_ext("worker.after_register", lambda _cls: None, cls)
 
         if cron:
             register_scheduled(cron, cls)
