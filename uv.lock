@@ -304,7 +304,7 @@ wheels = [
 
 [[package]]
 name = "oban"
-version = "0.1.0"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -312,13 +312,13 @@ dependencies = [
     { name = "orjson" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
-    { name = "pytest-asyncio" },
     { name = "uvloop" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-benchmark" },
     { name = "ruff" },
     { name = "ty" },
@@ -339,13 +339,13 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.13" },
     { name = "psycopg-pool", specifier = ">=3.2.6" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "uvloop", specifier = ">=0.22.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
     { name = "ruff", specifier = ">=0.9.9" },
     { name = "ty", specifier = ">=0.0.1a27" },
