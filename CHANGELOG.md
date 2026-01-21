@@ -4,7 +4,7 @@ Oban is a robust job orchestration framework for Python, backed by PostgreSQL. T
 initial public release, bringing battle-tested patterns from Oban for Elixir to the Python
 ecosystem with an async-native, Pythonic API.
 
-## v0.5.0 — 2025-12-15
+## v0.5.0 — 2025-01-19
 
 ### Features
 
