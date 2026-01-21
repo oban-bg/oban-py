@@ -1,9 +1,8 @@
 <p align="center">
   <picture>
-    
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/blob/main/docs/_static/oban-logotype-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/blob/main/docs/_static/oban-logotype-light.png">
-    <img alt="Oban logo" src="https://raw.githubusercontent.com/oban-bg/oban-py/blob/main/docs/_static/oban-logotype-light.png" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-light.png">
+    <img alt="Oban logo" src="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-light.png" width="320">
   </picture>
 </p>
 
@@ -144,8 +143,8 @@ possible.
 
 Oban requires:
 
-* Python 3.12+
-* PostgreSQL 14.0+
+- Python 3.12+
+- PostgreSQL 14.0+
 
 ## Installation
 
@@ -235,10 +234,10 @@ make test
 
 To ensure a commit passes CI you should run `make ci`, or run these checks locally:
 
-* Lint with Ruff (`uv run ruff check`)
-* Check formatting (`uv run ruff format --check`)
-* Check types (`uv run ty check`)
-* Run tests (`uv run pytest`)
+- Lint with Ruff (`uv run ruff check`)
+- Check formatting (`uv run ruff format --check`)
+- Check types (`uv run ty check`)
+- Run tests (`uv run pytest`)
 
 ### Building Documentation
 
