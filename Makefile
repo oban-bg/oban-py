@@ -54,7 +54,7 @@ docs-clean:
 docs-publish: docs
 	$(eval VERSION := $(shell grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/'))
 	@echo "Publishing docs for oban-py v$(VERSION)..."
-	@cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='.*' .
+	@(cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='locales' --exclude='*.map' --exclude='*.ttf' *)
 	@curl -s -X POST "$(API_BASE)/releases" \
 		-H "Authorization: Bearer $$LYS_API_KEY" \
 		-F "package=py" \
