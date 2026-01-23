@@ -43,8 +43,6 @@
 > This README is for the unreleased main branch, please reference the [official docs][docs]
 > for the latest stable release.
 
-[docs]: https://oban.pro/docs/py
-[uv]: https://docs.astral.sh/uv/
 
 ---
 
@@ -206,6 +204,8 @@ and start processing with the CLI (or embedded mode).
 
 For more details, see the [full documentation][docs].
 
+[docs]: https://oban.pro/docs/py
+[uv]: https://docs.astral.sh/uv/
 <!-- INDEX END -->
 
 ## Also Available
