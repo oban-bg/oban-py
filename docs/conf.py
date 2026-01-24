@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 project = "oban"
 author = "Soren LLC"
-copyright = f"2025 {author}"
+copyright = f"2026 {author}"
 
 release = metadata.version("oban")
 version = release.rsplit(".", 1)[0]
