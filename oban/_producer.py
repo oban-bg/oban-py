@@ -166,7 +166,6 @@ class Producer:
             if not self._listen_token or not self._loop_task:
                 return
 
-            # Flush pending ACKs before cancelling the loop
             try:
                 await self._ack_jobs()
             except Exception:
