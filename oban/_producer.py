@@ -270,6 +270,7 @@ class Producer:
         self._last_fetch_time = asyncio.get_event_loop().time()
 
     async def _produce(self) -> None:
+        await self._ack_jobs()
 
         if self._paused or (self._limit - len(self._running_jobs)) <= 0:
             return
