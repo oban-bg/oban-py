@@ -195,6 +195,33 @@ class Oban:
 
         return await config.create_pool()
 
+    @classmethod
+    def get_instance(cls, name: str = "oban") -> Oban:
+        """Get the current Oban instance.
+
+        This provides access to the Oban instance without needing to pass it around
+        explicitly. The instance is available after calling `Oban()`.
+
+        Args:
+            name: Instance name, if a custom name was provided to `Oban(name=...)`
+
+        Returns:
+            The Oban instance
+
+        Raises:
+            RuntimeError: If no instance exists
+
+        Example:
+            >>> oban = Oban.get_instance()
+            >>> await oban.enqueue(MyWorker.new({"id": 1}))
+        """
+        instance = _instances.get(name)
+
+        if instance is None:
+            raise RuntimeError(f"Oban instance '{name}' not found")
+
+        return instance
+
     async def __aenter__(self) -> Oban:
         return await self.start()
 
@@ -1062,23 +1089,3 @@ class Oban:
                 await self._stop_queue_local(**payload)
             case "scale":
                 await self._scale_queue_local(**payload)
-
-
-def get_instance(name: str = "oban") -> Oban:
-    """Get an Oban instance from the registry by name.
-
-    Args:
-        name: Name of the instance to retrieve (default: "oban")
-
-    Returns:
-        The Oban instance
-
-    Raises:
-        RuntimeError: If no instance with the given name exists
-    """
-    instance = _instances.get(name)
-
-    if instance is None:
-        raise RuntimeError(f"Oban instance '{name}' not found in registry")
-
-    return instance

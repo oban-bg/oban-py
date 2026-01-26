@@ -127,11 +127,11 @@ def worker(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
         async def enqueue(
             cls, args: dict[str, Any] | None = None, /, **overrides
         ) -> Job:
-            from .oban import get_instance
+            from .oban import Oban
 
             job = cls.new(args, **overrides)
 
-            return await get_instance(cls._oban_name).enqueue(job)
+            return await Oban.get_instance(cls._oban_name).enqueue(job)
 
         setattr(cls, "_opts", overrides)
         setattr(cls, "_oban_name", oban)

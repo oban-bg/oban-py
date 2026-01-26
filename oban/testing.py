@@ -11,15 +11,11 @@ import json
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
 
 from ._executor import Executor
 from .job import Job
-from .oban import get_instance
+from .oban import Oban
 from ._worker import worker_name
-
-if TYPE_CHECKING:
-    from .oban import Oban
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
 
@@ -88,7 +84,7 @@ async def reset_oban(oban: str | Oban = "oban"):
         ...     await reset_oban()
     """
     if isinstance(oban, str):
-        oban = get_instance(oban)
+        oban = Oban.get_instance(oban)
 
     await oban._query.reset()
 
@@ -125,7 +121,7 @@ async def all_enqueued(*, oban: str | Oban = "oban", **filters) -> list[Job]:
         >>> assert await all_enqueued() == []
     """
     if isinstance(oban, str):
-        oban = get_instance(oban)
+        oban = Oban.get_instance(oban)
 
     if "worker" in filters and not isinstance(filters["worker"], str):
         filters["worker"] = worker_name(filters["worker"])
@@ -312,7 +308,7 @@ async def drain_queue(
         >>> await drain_queue(queue="default", with_recursion=False)
     """
     if isinstance(oban, str):
-        oban = get_instance(oban)
+        oban = Oban.get_instance(oban)
 
     summary = {
         "cancelled": 0,
