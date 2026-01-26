@@ -16,7 +16,7 @@ Job
 
 .. autoclass:: oban.Job
    :members:
-   :undoc-members:
+   :no-undoc-members:
    :show-inheritance:
 
 Decorators
