@@ -3,6 +3,7 @@ import pytest
 
 from oban import telemetry, worker
 from oban._producer import Producer
+from .helpers import with_backoff
 
 
 async def all_producers(conn):
@@ -105,3 +106,33 @@ class TestProducerTelemetry:
         assert meta["count"] == 2
 
         telemetry.detach("test-producer")
+
+
+class TestProducerAcks:
+    @pytest.mark.oban(queues={"default": 1})
+    async def test_paused_queue_acks_completed_job(self, oban_instance):
+        finished = asyncio.Event()
+
+        async with oban_instance() as oban:
+
+            @worker()
+            class PausingWorker:
+                async def process(self, job):
+                    await oban.pause_queue("default")
+                    finished.set()
+
+            job = await oban.enqueue(PausingWorker.new())
+
+            await asyncio.wait_for(finished.wait(), timeout=1.0)
+
+            # Give producer loop time to flush the ACK
+            await asyncio.sleep(0.1)
+
+            fetched = await oban.get_job(job.id)
+            assert fetched is not None
+            assert fetched.state == "completed"
+
+            info = oban.check_queue("default")
+            assert info is not None
+            assert info.running == []
+
