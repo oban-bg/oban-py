@@ -2,7 +2,12 @@
 
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'oban_job_state') THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_type t
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE t.typname = 'oban_' || 'job' || '_state'
+          AND n.nspname = current_schema()
+    ) THEN
         CREATE TYPE oban_job_state AS ENUM (
             'available',
             'scheduled',
