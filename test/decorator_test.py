@@ -1,6 +1,8 @@
+import asyncio
 import pytest
 
 from oban import job, worker
+from oban.testing import process_job
 
 
 class TestWorkerDecorator:
@@ -112,3 +114,18 @@ class TestJobDecorator:
             @job(cron="* * *")
             def bad_task():
                 pass
+
+    def test_async_job_functions_are_awaited(self):
+        executed = False
+
+        @job()
+        async def async_task():
+            nonlocal executed
+            executed = True
+            return "ok"
+
+        result = process_job(async_task.new())
+
+        assert not asyncio.iscoroutine(result)
+        assert executed
+        assert result == "ok"

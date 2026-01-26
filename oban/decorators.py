@@ -186,7 +186,10 @@ def job(*, oban: str = "oban", cron: str | dict | None = None, **overrides):
 
         class FunctionWorker:
             async def process(self, job: Job):
-                return func(**job.args)
+                result = func(**job.args)
+                if inspect.isawaitable(result):
+                    return await result
+                return result
 
         FunctionWorker.__name__ = func.__name__  # type: ignore[attr-defined]
         FunctionWorker.__module__ = func.__module__  # type: ignore[attr-defined]
