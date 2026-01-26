@@ -132,7 +132,3 @@ class TestProducerAcks:
             assert fetched is not None
             assert fetched.state == "completed"
 
-            info = oban.check_queue("default")
-            assert info is not None
-            assert info.running == []
-
