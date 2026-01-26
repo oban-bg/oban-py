@@ -19,6 +19,7 @@ class TestExpressionParse:
         assert {0} == Expression.parse("@hourly").minutes
         assert {0} == Expression.parse("@daily").hours
         assert {1} == Expression.parse("@monthly").days
+        assert {0} == Expression.parse("@weekly").weekdays
 
     def test_parsing_month_aliases(self):
         assert {1} == Expression.parse("* * * JAN *").months
@@ -26,7 +27,7 @@ class TestExpressionParse:
 
     def test_parsing_weekday_aliases(self):
         assert {1} == Expression.parse("* * * * MON").weekdays
-        assert {2, 7} == Expression.parse("* * * * SUN,TUE").weekdays
+        assert {0, 2} == Expression.parse("* * * * SUN,TUE").weekdays
 
     def test_parsing_upper_bounds(self):
         assert Expression.parse("59 23 31 12 7")
@@ -37,12 +38,18 @@ class TestExpressionParse:
             "* 24 * * *",
             "* * 32 * *",
             "* * * 13 *",
-            "* * * * 0",
+            "* * * * 8",
         ]
 
         for input in inputs:
             with pytest.raises(ValueError, match="out of range"):
                 Expression.parse(input)
+
+    def test_parsing_sunday_as_0_or_7(self):
+        assert {0} == Expression.parse("* * * * 0").weekdays
+        assert {0} == Expression.parse("* * * * 7").weekdays
+        assert {0, 1} == Expression.parse("* * * * 0,1").weekdays
+        assert {0, 1} == Expression.parse("* * * * 7,1").weekdays
 
     def test_parsing_unrecognized_expressions(self):
         inputs = [
@@ -190,7 +197,7 @@ class TestScheduledRegistration:
             async def process(self, job):
                 pass
 
-        @job(cron="@hourly")
+        @job(cron="@weekly")
         def business():
             pass
 

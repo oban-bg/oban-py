@@ -17,13 +17,13 @@ if TYPE_CHECKING:
     from ._query import Query
 
 DOW_ALIASES = {
+    "SUN": "0",
     "MON": "1",
     "TUE": "2",
     "WED": "3",
     "THU": "4",
     "FRI": "5",
     "SAT": "6",
-    "SUN": "7",
 }
 
 MON_ALIASES = {
@@ -45,7 +45,7 @@ MIN_SET = frozenset(range(0, 60))
 HRS_SET = frozenset(range(0, 24))
 DAY_SET = frozenset(range(1, 32))
 MON_SET = frozenset(range(1, 13))
-DOW_SET = frozenset(range(1, 8))
+DOW_SET = frozenset(range(0, 8))  # 0-7, both 0 and 7 mean Sunday
 
 NICKNAMES = {
     "@annually": "0 0 1 1 *",
@@ -135,13 +135,13 @@ class Expression:
         return {int(part)}
 
     @staticmethod
-    def _parse_step(part: str, allowed: set[int]) -> set[int]:
+    def _parse_step(part: str, allowed: frozenset[int] | set[int]) -> set[int]:
         step = int(part.replace("*/", ""))
 
         return set(range(min(allowed), max(allowed) + 1, step))
 
     @staticmethod
-    def _parse_range(part: str, allowed: set[int]) -> set[int]:
+    def _parse_range(part: str, allowed: frozenset[int] | set[int]) -> set[int]:
         match part.split("-"):
             case [rmin]:
                 rmin = int(rmin)
@@ -160,7 +160,7 @@ class Expression:
                 raise ValueError(f"unrecognized range: {part}")
 
     @staticmethod
-    def _parse_range_step(part: str, allowed: set[int]) -> set[int]:
+    def _parse_range_step(part: str, allowed: frozenset[int] | set[int]) -> set[int]:
         range_part, step_value = part.split("/")
         range_set = Expression._parse_range(range_part, allowed)
         step_part = f"*/{step_value}"
@@ -168,9 +168,9 @@ class Expression:
         return Expression._parse_step(step_part, range_set)
 
     @staticmethod
-    def _parse_part(part: str, allowed: set[int]) -> set[int]:
+    def _parse_part(part: str, allowed: frozenset[int]) -> set[int]:
         if part == "*":
-            return allowed
+            return set(allowed)
         elif re.match(r"^\d+$", part):
             return Expression._parse_literal(part)
         elif re.match(r"^\*\/[1-9]\d?$", part):
@@ -183,7 +183,7 @@ class Expression:
             raise ValueError(f"unrecognized expression: {part}")
 
     @staticmethod
-    def _parse_field(field: str, allowed: set[int]) -> set[int]:
+    def _parse_field(field: str, allowed: frozenset[int]) -> set[int]:
         parsed = set()
 
         for part in re.split(r"\s*,\s*", field):
@@ -238,13 +238,17 @@ class Expression:
                 mon_part = cls._replace_aliases(mon_part, MON_ALIASES)
                 dow_part = cls._replace_aliases(dow_part, DOW_ALIASES)
 
+                weekdays = cls._parse_field(dow_part, DOW_SET)
+                if 7 in weekdays:
+                    weekdays = (weekdays - {7}) | {0}
+
                 return cls(
                     input=expression,
                     minutes=cls._parse_field(min_part, MIN_SET),
                     hours=cls._parse_field(hrs_part, HRS_SET),
                     days=cls._parse_field(day_part, DAY_SET),
                     months=cls._parse_field(mon_part, MON_SET),
-                    weekdays=cls._parse_field(dow_part, DOW_SET),
+                    weekdays=weekdays,
                 )
             case _:
                 raise ValueError(f"incorrect number of fields: {expression}")
@@ -254,7 +258,7 @@ class Expression:
         time = time or datetime.now(timezone.utc)
 
         return (
-            time.isoweekday() in self.weekdays
+            time.isoweekday() % 7 in self.weekdays
             and time.month in self.months
             and time.day in self.days
             and time.hour in self.hours
