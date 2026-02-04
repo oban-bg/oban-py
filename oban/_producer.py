@@ -166,14 +166,6 @@ class Producer:
             if not self._listen_token or not self._loop_task:
                 return
 
-            try:
-                await self._ack_jobs()
-            except Exception:
-                logger.debug(
-                    "Failed to flush pending ACKs for producer %s during shutdown",
-                    self._uuid,
-                )
-
             self._loop_task.cancel()
 
             await self._notifier.unlisten(self._listen_token)
@@ -197,6 +189,11 @@ class Producer:
                 *running_tasks,
                 return_exceptions=True,
             )
+
+            try:
+                await self._ack_jobs()
+            except Exception:
+                logger.debug("Failed to flush ACKs for %s during shutdown", self._uuid)
 
             try:
                 await self._query.delete_producer(self._uuid)
