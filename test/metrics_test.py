@@ -4,10 +4,23 @@ import pytest
 
 from oban import worker
 from oban._metrics import Metrics, _build_gauge, _build_sketch, _compute_bin
+from oban._scheduler import _scheduled_entries, register_scheduled
 
 
 @worker()
 class MetricsTestWorker:
+    async def process(self, job):
+        pass
+
+
+@worker(cron="0 0 * * *")
+class DailyScheduledWorker:
+    async def process(self, job):
+        pass
+
+
+@worker(cron={"expr": "*/5 * * * *", "timezone": "America/Chicago"})
+class FrequentScheduledWorker:
     async def process(self, job):
         pass
 
@@ -306,3 +319,37 @@ class TestEstimatedCounts:
 
             full_counts = get_full_counts(payload)
             assert len(full_counts) > 0
+
+
+class TestCronitorBroadcast:
+    @pytest.mark.oban(metrics={"interval": 0.01, "cronitor_interval": 0.01})
+    async def test_broadcasts_crontab_with_scheduled_entries(self, oban_instance):
+        received = asyncio.Queue()
+
+        def callback(channel, payload):
+            received.put_nowait((channel, payload))
+
+        async with oban_instance() as oban:
+            await oban._notifier.listen("cronitor", callback)
+
+            channel, payload = await asyncio.wait_for(received.get(), timeout=0.5)
+
+            assert channel == "cronitor"
+            assert "crontab" in payload
+            assert "name" in payload
+            assert "node" in payload
+
+            crontab = payload["crontab"]
+            assert isinstance(crontab, list)
+
+            entries_by_worker = {entry[1]: entry for entry in crontab}
+
+            daily = entries_by_worker.get("test.metrics_test.DailyScheduledWorker")
+            assert daily is not None
+            assert daily[0] == "0 0 * * *"
+            assert daily[2] == {}
+
+            frequent = entries_by_worker.get("test.metrics_test.FrequentScheduledWorker")
+            assert frequent is not None
+            assert frequent[0] == "*/5 * * * *"
+            assert frequent[2] == {"timezone": "America/Chicago"}

@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from .job import JobState
+from ._scheduler import ScheduledEntry, scheduled_entries
+from ._worker import worker_name
 
 if TYPE_CHECKING:
     from ._leader import Leader
@@ -47,7 +49,6 @@ def _build_sketch(values: list[int]) -> dict[str, Any]:
     return {"data": dict(bins.items()), "size": len(values)}
 
 
-# All job states for full_count metrics
 ALL_STATES = list(JobState)
 
 
@@ -61,6 +62,7 @@ class Metrics:
         notifier: Notifier,
         producers: dict[str, Producer],
         query: Query,
+        cronitor_interval: float = 30.0,
         estimate_limit: int = 50_000,
         interval: float = 1.0,
     ) -> None:
@@ -70,12 +72,14 @@ class Metrics:
         self._notifier = notifier
         self._producers = producers
         self._query = query
+        self._cronitor_interval = cronitor_interval
         self._estimate_limit = estimate_limit
         self._interval = interval
 
         self._buffer = defaultdict(list)
         self._buffer_lock = Lock()
         self._counts = []
+        self._cronitor_counter = 0
         self._previous_counts = {}
         self._handler_id = f"oban-metrics-{name}"
         self._loop_task = None
@@ -118,6 +122,11 @@ class Metrics:
         await self._gather_counts()
         await self._broadcast_checks()
         await self._broadcast_metrics()
+
+        self._cronitor_counter += 1
+        if self._cronitor_counter >= self._cronitor_interval / self._interval:
+            await self._broadcast_crontab()
+            self._cronitor_counter = 0
 
     def _handle_job_event(self, _name: str, meta: dict[str, Any]) -> None:
         job = meta["job"]
@@ -220,6 +229,19 @@ class Metrics:
             },
         )
 
+    async def _broadcast_crontab(self) -> None:
+        entries = scheduled_entries()
+
+        if not entries:
+            return
+
+        crontab = [self._entry_to_list(entry) for entry in entries]
+
+        await self._notifier.notify(
+            "cronitor",
+            {"crontab": crontab, "name": self._name, "node": self._node},
+        )
+
     def _check_to_dict(self, check: QueueInfo) -> dict[str, Any]:
         started_at = check.started_at.isoformat() if check.started_at else None
 
@@ -232,3 +254,11 @@ class Metrics:
             "running": check.running,
             "started_at": started_at,
         }
+
+    def _entry_to_list(self, entry: ScheduledEntry) -> list[Any]:
+        opts = {}
+
+        if entry.timezone:
+            opts["timezone"] = str(entry.timezone)
+
+        return [entry.expression.input, worker_name(entry.worker_cls), opts]
