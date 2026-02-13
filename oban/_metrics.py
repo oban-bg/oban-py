@@ -64,6 +64,7 @@ class Metrics:
         notifier: Notifier,
         producers: dict[str, Producer],
         query: Query,
+        counts_enabled: bool = True,
         cronitor_interval: float = 30.0,
         estimate_limit: int = 50_000,
         interval: float = 1.0,
@@ -74,6 +75,7 @@ class Metrics:
         self._notifier = notifier
         self._producers = producers
         self._query = query
+        self._counts_enabled = counts_enabled
         self._cronitor_interval = cronitor_interval
         self._estimate_limit = estimate_limit
         self._interval = interval
@@ -145,7 +147,7 @@ class Metrics:
             self._buffer[("exec_count", state, queue, worker)].append(1)
 
     async def _gather_counts(self) -> None:
-        if not self._leader.is_leader:
+        if not self._counts_enabled or not self._leader.is_leader:
             return
 
         exact_states = []

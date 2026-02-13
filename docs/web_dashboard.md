@@ -87,6 +87,7 @@ can tune these options:
 interval = 1.0           # Broadcast frequency in seconds
 estimate_limit = 50000   # Use estimates above this job count
 cronitor_interval = 30   # Cron schedule broadcast frequency
+counts_enabled = true    # Enable job state counts
 ```
 
 | Option              | Default  | Description                                      |
@@ -94,6 +95,7 @@ cronitor_interval = 30   # Cron schedule broadcast frequency
 | `interval`          | `1.0`    | How often metrics are broadcast (in seconds)     |
 | `estimate_limit`    | `50000`  | Job count threshold for switching to estimates   |
 | `cronitor_interval` | `30`     | How often cron schedules are broadcast (seconds) |
+| `counts_enabled`    | `true`   | Enable broadcasting job state counts             |
 
 ### Estimated Counts
 
@@ -107,3 +109,16 @@ Lower the limit if you have many jobs and notice database load from count querie
 [metrics]
 estimate_limit = 10000
 ```
+
+### Hybrid Elixir/Python Environments
+
+When running both Elixir and Python Oban workers against the same database, disable counts on the
+Python side to avoid duplicate job state counts in the dashboard:
+
+```toml
+[metrics]
+counts_enabled = false
+```
+
+The Elixir instance will handle broadcasting job counts, while Python workers still report their
+own execution metrics (timing, throughput, etc.).
