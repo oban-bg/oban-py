@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING
 
 from . import telemetry
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._notifier import Notifier
@@ -93,7 +96,7 @@ class Leader:
             except asyncio.CancelledError:
                 break
             except Exception:
-                pass
+                logger.exception("Error in leader")
             finally:
                 if not self._started.is_set():
                     self._started.set()

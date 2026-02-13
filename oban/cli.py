@@ -64,8 +64,8 @@ def _import_cron_modules(module_paths: list[str]) -> int:
         try:
             importlib.import_module(path)
             return True
-        except Exception as error:
-            logger.error(f"Failed to import cron module at {path}: {error}")
+        except Exception:
+            logger.exception("Failed to import cron module at %s", path)
 
             return False
 
@@ -179,8 +179,8 @@ async def _start_pool(conf: Config) -> AsyncConnectionPool:
             f"Connected to database (pool: {conf.pool_min_size}-{conf.pool_max_size})"
         )
         return pool
-    except Exception as error:
-        logger.error(f"Failed to connect to database: {error!r}")
+    except Exception:
+        logger.exception("Failed to connect to database")
         sys.exit(1)
 
 
@@ -257,8 +257,8 @@ def install(config: str | None, dsn: str | None, prefix: str | None) -> None:
             async with schema_pool(conf.dsn) as pool:
                 await install_schema(pool, prefix=schema_prefix)
             logger.info("Schema installed successfully")
-        except Exception as error:
-            logger.error(f"Failed to install schema: {error!r}", exc_info=True)
+        except Exception:
+            logger.exception("Failed to install schema")
             sys.exit(1)
 
     asyncio_run(run())
@@ -293,8 +293,8 @@ def uninstall(config: str | None, dsn: str | None, prefix: str | None) -> None:
             async with schema_pool(conf.dsn) as pool:
                 await uninstall_schema(pool, prefix=schema_prefix)
             logger.info("Schema uninstalled successfully")
-        except Exception as e:
-            logger.error(f"Failed to uninstall schema: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Failed to uninstall schema")
             sys.exit(1)
 
     asyncio_run(run())
@@ -423,8 +423,8 @@ def start(
                 await shutdown_event.wait()
 
                 logger.info("Shutting down gracefully...")
-        except Exception as error:
-            logger.error(f"Error during operation: {error!r}", exc_info=True)
+        except Exception:
+            logger.exception("Error during operation")
             sys.exit(1)
         finally:
             telemetry_logger.detach()

@@ -101,8 +101,8 @@ def execute(name: str, metadata: Metadata) -> None:
     for handler in handlers:
         try:
             handler(name, metadata.copy())
-        except Exception as error:
-            logger.exception("Telemetry handler error for event '%s': %s", name, error)
+        except Exception:
+            logger.exception("Error in telemetry handler for event '%s'", name)
 
 
 @contextmanager
