@@ -21,6 +21,8 @@ from oban import __version__
 from oban._config import Config
 from oban.schema import (
     install as install_schema,
+)
+from oban.schema import (
     uninstall as uninstall_schema,
 )
 from oban.telemetry import logger as telemetry_logger
@@ -74,12 +76,29 @@ def _import_cron_modules(module_paths: list[str]) -> int:
 
 def _import_cron_paths(paths: list[str]) -> list[str]:
     root = Path(os.getcwd())
-    grep = ["grep", "-rl", "--include=*.py", r"@worker.*cron\|@job.*cron"]
+    grep = ["grep", "-rl", "--include=*.py", r"@worker\|@job"]
 
     found = []
     for pattern in [str(root / path) for path in paths]:
         result = subprocess.run(
             [*grep, pattern],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            continue
+
+        candidates = [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
+
+        if not candidates:
+            continue
+
+        result = subprocess.run(
+            ["grep", "-l", r"cron=", *candidates],
             capture_output=True,
             text=True,
             check=False,
@@ -126,7 +145,7 @@ def _find_and_load_cron_modules(
 
 def print_banner(version: str) -> None:
     banner = f"""
-  
+
   [38;2;153;183;183m ██████╗  ██████╗    ████╗   ███╗   ██╗
   [38;2;143;175;175m██╔═══██╗ ██╔══██╗  ██╔═██╗  ████╗  ██║
   [38;2;133;167;167m██║   ██║ ██████╔╝ ████████╗ ██╔██╗ ██║

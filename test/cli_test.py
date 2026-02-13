@@ -1,9 +1,10 @@
+from textwrap import dedent
+
 import psycopg
 import pytest
-from textwrap import dedent
 from click.testing import CliRunner
 
-from oban.cli import main
+from oban.cli import _import_cron_paths, main
 
 
 @pytest.fixture
@@ -23,6 +24,61 @@ def dsn(test_dsn, dsn_base):
 
     with psycopg.connect(f"{dsn_base}/postgres", autocommit=True) as conn:
         conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
+
+
+class TestImportCronPaths:
+    def test_discovers_multi_line_worker(self, tmp_path, monkeypatch):
+        (tmp_path / "cron_worker.py").write_text(
+            dedent("""
+            from oban import worker
+
+            @worker(
+                cron="*/5 * * * *",
+                queue="default",
+            )
+            class FrequentWorker:
+                async def process(self, job):
+                    pass
+        """)
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        assert _import_cron_paths([str(tmp_path)]) == ["cron_worker"]
+
+    def test_discovers_multi_line_job(self, tmp_path, monkeypatch):
+        (tmp_path / "cron_job.py").write_text(
+            dedent("""
+            from oban import job
+
+            @job(
+                cron="*/5 * * * *",
+                queue="default",
+            )
+            def execute():
+                pass
+        """)
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        assert _import_cron_paths([str(tmp_path)]) == ["cron_job"]
+
+    def test_ignores_worker_without_cron(self, tmp_path, monkeypatch):
+        (tmp_path / "no_cron.py").write_text(
+            dedent("""
+            from oban import worker
+
+            @worker(queue="default")
+            class RegularWorker:
+                async def process(self, job):
+                    pass
+        """)
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        assert _import_cron_paths([str(tmp_path)]) == []
 
 
 class TestInstallCommand:
