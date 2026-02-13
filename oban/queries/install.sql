@@ -11,13 +11,28 @@ BEGIN
         CREATE TYPE oban_job_state AS ENUM (
             'available',
             'scheduled',
-            'suspended',
             'executing',
             'retryable',
             'completed',
             'discarded',
             'cancelled'
         );
+    END IF;
+END
+$$;
+
+-- Add 'suspended' state if missing (for compatibility with Elixir Oban schemas)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE t.typname = 'oban_' || 'job' || '_state'
+          AND n.nspname = current_schema()
+          AND e.enumlabel = 'suspended'
+    ) THEN
+        ALTER TYPE oban_job_state ADD VALUE 'suspended' AFTER 'scheduled';
     END IF;
 END
 $$;
