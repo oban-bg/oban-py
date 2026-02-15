@@ -34,10 +34,12 @@ class Config:
     scheduler: dict[str, Any] | None = None
     stager: dict[str, Any] | None = None
 
-    # Connection pool options
     pool_min_size: int = 1
     pool_max_size: int = 10
     pool_timeout: float = 30.0
+    pool_max_lifetime: float = 3600.0
+    pool_max_idle: float = 600.0
+    pool_check: bool = False
 
     @staticmethod
     def _parse_queues(input: str) -> dict[str, int]:
@@ -63,6 +65,9 @@ class Config:
         - OBAN_NODE: Node identifier (default: hostname)
         - OBAN_POOL_MIN_SIZE: Minimum connection pool size (default: 1)
         - OBAN_POOL_MAX_SIZE: Maximum connection pool size (default: 10)
+        - OBAN_POOL_MAX_LIFETIME: Max seconds before recycling a connection (default: 3600)
+        - OBAN_POOL_MAX_IDLE: Max seconds a connection can sit idle (default: 600)
+        - OBAN_POOL_CHECK: Validate connections before use (default: false)
         """
         return cls(
             dsn=os.getenv("OBAN_DSN"),
@@ -71,6 +76,9 @@ class Config:
             prefix=os.getenv("OBAN_PREFIX", "public"),
             pool_min_size=int(os.getenv("OBAN_POOL_MIN_SIZE", "1")),
             pool_max_size=int(os.getenv("OBAN_POOL_MAX_SIZE", "10")),
+            pool_max_lifetime=float(os.getenv("OBAN_POOL_MAX_LIFETIME", "3600")),
+            pool_max_idle=float(os.getenv("OBAN_POOL_MAX_IDLE", "600")),
+            pool_check=os.getenv("OBAN_POOL_CHECK", "false").lower() == "true",
         )
 
     @classmethod
@@ -134,6 +142,9 @@ class Config:
             min_size=self.pool_min_size,
             max_size=self.pool_max_size,
             timeout=self.pool_timeout,
+            max_lifetime=self.pool_max_lifetime,
+            max_idle=self.pool_max_idle,
+            check=AsyncConnectionPool.check_connection if self.pool_check else None,
             open=False,
         )
 
