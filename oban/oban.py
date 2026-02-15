@@ -115,7 +115,6 @@ class Oban:
             query=self._query,
             notifier=self._notifier,
             producers=self._producers,
-            leader=self._leader,
             **stager,
         )
 

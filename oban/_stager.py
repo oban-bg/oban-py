@@ -10,7 +10,6 @@ from ._extensions import use_ext
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ._leader import Leader
     from ._notifier import Notifier
     from ._producer import Producer
     from ._query import Query
@@ -36,14 +35,12 @@ class Stager:
         query: Query,
         notifier: Notifier,
         producers: dict[str, Producer],
-        leader: Leader,
         interval: float = 1.0,
         limit: int = 20_000,
     ) -> None:
         self._query = query
         self._notifier = notifier
         self._producers = producers
-        self._leader = leader
         self._interval = interval
         self._limit = limit
 
