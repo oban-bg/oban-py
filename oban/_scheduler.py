@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+import orjson
 
 from . import telemetry
 from ._worker import worker_name
@@ -59,6 +62,14 @@ NICKNAMES = {
     "@daily": "0 0 * * *",
     "@hourly": "0 * * * *",
 }
+
+
+def cron_hash(expression: str, worker: str, opts: dict) -> str:
+    opts_bytes = orjson.dumps(opts, option=orjson.OPT_SORT_KEYS)
+    data = f"{expression}:{worker}:".encode() + opts_bytes
+    hash = hashlib.sha256(data).hexdigest()
+
+    return hash[:8]
 
 
 @dataclass(slots=True, frozen=True)
@@ -349,7 +360,12 @@ class Scheduler:
 
     def _build_job(self, entry: ScheduledEntry) -> Job:
         work_name = worker_name(entry.worker_cls)
-        cron_name = str(hash((entry.expression.input, work_name)))
+        opts = {}
+
+        if entry.timezone:
+            opts["timezone"] = str(entry.timezone)
+
+        cron_name = cron_hash(entry.expression.input, work_name, opts)
 
         job = entry.worker_cls.new()  # type: ignore[attr-defined]
 

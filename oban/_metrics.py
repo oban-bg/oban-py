@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from .job import JobState
-from ._scheduler import ScheduledEntry, scheduled_entries
+from ._scheduler import ScheduledEntry, cron_hash, scheduled_entries
 from ._worker import worker_name
 
 if TYPE_CHECKING:
@@ -261,9 +261,12 @@ class Metrics:
         }
 
     def _entry_to_list(self, entry: ScheduledEntry) -> list[Any]:
+        work_name = worker_name(entry.worker_cls)
         opts = {}
 
         if entry.timezone:
             opts["timezone"] = str(entry.timezone)
 
-        return [entry.expression.input, worker_name(entry.worker_cls), opts]
+        opts["name"] = cron_hash(entry.expression.input, work_name, opts)
+
+        return [entry.expression.input, work_name, opts]

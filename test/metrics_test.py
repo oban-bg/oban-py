@@ -346,11 +346,14 @@ class TestCronitorBroadcast:
             daily = entries_by_worker.get("test.metrics_test.DailyScheduledWorker")
             assert daily is not None
             assert daily[0] == "0 0 * * *"
-            assert daily[2] == {}
+            assert "name" in daily[2]
+            assert len(daily[2]["name"]) == 8
 
             frequent = entries_by_worker.get(
                 "test.metrics_test.FrequentScheduledWorker"
             )
             assert frequent is not None
             assert frequent[0] == "*/5 * * * *"
-            assert frequent[2] == {"timezone": "America/Chicago"}
+            assert frequent[2]["timezone"] == "America/Chicago"
+            assert "name" in frequent[2]
+            assert len(frequent[2]["name"]) == 8
