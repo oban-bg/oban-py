@@ -4,6 +4,7 @@ import pytest
 
 from oban import worker
 from oban._metrics import Metrics, _build_gauge, _build_sketch, _compute_bin
+from oban._scheduler import clear_scheduled, register_scheduled
 
 
 @worker()
@@ -321,6 +322,17 @@ class TestEstimatedCounts:
 
 
 class TestCronitorBroadcast:
+    @pytest.fixture(autouse=True)
+    def setup_scheduled_entries(self):
+        clear_scheduled()
+        register_scheduled("0 0 * * *", DailyScheduledWorker)
+        register_scheduled(
+            {"expr": "*/5 * * * *", "timezone": "America/Chicago"},
+            FrequentScheduledWorker,
+        )
+        yield
+        clear_scheduled()
+
     @pytest.mark.oban(metrics={"interval": 0.01, "cronitor_interval": 0.01})
     async def test_broadcasts_crontab_with_scheduled_entries(self, oban_instance):
         received = asyncio.Queue()

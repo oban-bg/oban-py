@@ -5,7 +5,12 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from oban import job, worker
-from oban._scheduler import Expression, Scheduler, _scheduled_entries, scheduled_entries
+from oban._scheduler import (
+    Expression,
+    Scheduler,
+    clear_scheduled,
+    scheduled_entries,
+)
 
 
 class TestExpressionParse:
@@ -164,10 +169,10 @@ class TestExpressionIsNow:
 
 class TestScheduledRegistration:
     @pytest.fixture(autouse=True)
-    def clear_scheduled_entries(self):
-        _scheduled_entries.clear()
+    def clear_scheduled(self):
+        clear_scheduled()
         yield
-        _scheduled_entries.clear()
+        clear_scheduled()
 
     def test_worker_with_cron_registers_entry(self):
         @worker(queue="cleanup", cron="0 0 * * *")
@@ -175,7 +180,7 @@ class TestScheduledRegistration:
             async def process(self, job):
                 pass
 
-        entry = _scheduled_entries[0]
+        entry = scheduled_entries()[0]
 
         assert entry
         assert entry.worker_cls == CleanupWorker
@@ -186,7 +191,7 @@ class TestScheduledRegistration:
         def daily_report():
             pass
 
-        entry = _scheduled_entries[0]
+        entry = scheduled_entries()[0]
 
         assert entry
         assert entry.expression.input == "@daily"
@@ -201,7 +206,7 @@ class TestScheduledRegistration:
         def business():
             pass
 
-        assert len(_scheduled_entries) == 2
+        assert len(scheduled_entries()) == 2
 
     def test_scheduled_entries_returns_copy(self):
         @worker(cron="@daily")
@@ -220,10 +225,10 @@ class TestScheduledRegistration:
 
 class TestSchedulerEvaluate:
     @pytest.fixture(autouse=True)
-    def clear_scheduled_entries(self):
-        _scheduled_entries.clear()
+    def clear_scheduled(self):
+        clear_scheduled()
         yield
-        _scheduled_entries.clear()
+        clear_scheduled()
 
     @pytest.fixture
     def mock_query(self):

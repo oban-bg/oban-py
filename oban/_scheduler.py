@@ -98,6 +98,11 @@ def scheduled_entries() -> list[ScheduledEntry]:
     return _scheduled_entries.copy()
 
 
+def clear_scheduled() -> None:
+    """Clear all registered scheduled entries."""
+    _scheduled_entries.clear()
+
+
 def register_scheduled(cron: str | dict, worker_cls: type) -> None:
     """Register a worker or job for periodic execution.
 
