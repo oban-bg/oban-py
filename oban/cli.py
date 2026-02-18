@@ -74,7 +74,15 @@ def _import_cron_modules(module_paths: list[str]) -> int:
 
 def _import_cron_paths(paths: list[str]) -> list[str]:
     root = Path(os.getcwd())
-    grep = ["grep", "-rl", "--include=*.py", r"@worker\|@job"]
+    grep = [
+        "grep",
+        "-rl",
+        "--include=*.py",
+        "--exclude-dir=.venv",
+        "--exclude-dir=venv",
+        "--exclude-dir=.tox",
+        r"@worker\|@job",
+    ]
 
     found = []
     for pattern in [str(root / path) for path in paths]:
