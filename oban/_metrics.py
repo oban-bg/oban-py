@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from . import telemetry
 from .job import JobState
 from ._scheduler import ScheduledEntry, cron_hash, scheduled_entries
-from ._worker import worker_name
+from .worker import worker_name
 
 if TYPE_CHECKING:
     from ._leader import Leader

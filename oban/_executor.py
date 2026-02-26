@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from . import telemetry
 from ._backoff import jittery_clamped
 from ._extensions import use_ext
-from ._worker import resolve_worker
+from .worker import resolve_worker
 from .job import Cancel, Record, Snooze
 
 if TYPE_CHECKING:

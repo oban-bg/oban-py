@@ -12,9 +12,9 @@ from functools import wraps
 from typing import Any, Callable
 
 from ._extensions import use_ext
-from ._worker import register_worker, worker_name
 from ._scheduler import register_scheduled
 from .job import Job, Result
+from .worker import Worker, register_worker, worker_name
 
 JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation"} | {"schedule_in"}
 
@@ -108,7 +108,7 @@ def worker(*, oban: str = "Oban", cron: str | dict | None = None, **overrides):
         retry delays. If not provided, uses Oban's default jittery clamped backoff.
     """
 
-    def decorate(cls: type) -> type:
+    def decorate(cls: type) -> type[Worker]:
         if not hasattr(cls, "process"):
 
             async def process(self, job: Job) -> Result[Any]:

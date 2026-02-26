@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from ._executor import Executor
 from .job import Job
 from .oban import Oban
-from ._worker import worker_name
+from .worker import worker_name
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
 

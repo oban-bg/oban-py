@@ -3,6 +3,7 @@ from importlib.metadata import version
 from .decorators import job, worker
 from .job import Cancel, Job, Record, Snooze
 from .oban import Oban
+from .worker import Worker
 
 try:
     import oban_pro  # noqa: F401  # ty: ignore[unresolved-import]
@@ -15,6 +16,7 @@ __all__ = [
     "Oban",
     "Record",
     "Snooze",
+    "Worker",
     "job",
     "worker",
 ]

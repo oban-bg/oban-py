@@ -24,7 +24,7 @@ task isn't forcefully terminated_. Workers should check for cancellation at safe
 gracefully:
 
 ```python
-class MyWorker(Worker):
+class MyWorker:
     async def process(self, job):
         for item in dataset:
             if job.cancelled():

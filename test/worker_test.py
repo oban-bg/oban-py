@@ -1,6 +1,6 @@
 import pytest
 
-from oban._worker import (
+from oban.worker import (
     WorkerResolutionError,
     register_worker,
     resolve_worker,
@@ -27,7 +27,7 @@ class TestResolveWorker:
         assert resolve_worker(path).__name__ == "OrderedDict"
 
     def test_resolve_nested_module(self):
-        path = "oban._worker.WorkerResolutionError"
+        path = "oban.worker.WorkerResolutionError"
 
         assert resolve_worker(path) is WorkerResolutionError
 
@@ -41,4 +41,4 @@ class TestResolveWorker:
 
     def test_non_class_attribute_raises_error(self):
         with pytest.raises(WorkerResolutionError, match="expected a class"):
-            resolve_worker("oban._worker.worker_name")
+            resolve_worker("oban.worker.worker_name")

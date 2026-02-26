@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import orjson
 
 from . import telemetry
-from ._worker import worker_name
+from .worker import worker_name
 
 logger = logging.getLogger(__name__)
 

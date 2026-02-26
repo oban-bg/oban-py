@@ -19,6 +19,13 @@ Job
    :no-undoc-members:
    :show-inheritance:
 
+Worker
+------
+
+.. autoclass:: oban.Worker
+   :members:
+   :show-inheritance:
+
 Decorators
 ----------
 
