@@ -21,7 +21,7 @@ async def insert_job(conn, state, ago):
 
 
 async def get_ids(conn):
-    rows = await conn.execute("SELECT id FROM oban_jobs")
+    rows = await conn.execute("SELECT id FROM oban_jobs ORDER BY id")
     result = await rows.fetchall()
 
     return [id for (id,) in result]
