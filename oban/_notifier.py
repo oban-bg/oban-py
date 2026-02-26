@@ -73,18 +73,23 @@ class Notifier(Protocol):
         ...
 
     async def listen(
-        self, channel: str, callback: Callable[[str, dict], Any], wait: bool = True
+        self,
+        channel: str,
+        callback: Callable[[str, dict], Any],
+        wait: bool = True,
+        timeout: float | None = None,
     ) -> str:
         """Register a callback for a channel.
 
         Args:
-            channels: Channel name to listen on
+            channel: Channel name to listen on
             callback: Sync or async function called when notification received.
                       Receives (channel, payload) as arguments where payload is a dict.
                       Async callbacks are executed in the background without blocking.
             wait: If True, blocks until the subscription is fully established and ready to
                   receive notifications. If False, returns immediately after registering.
                   Defaults to True for test reliability.
+            timeout: Maximum time to wait when wait=True. None means no timeout.
 
         Returns:
             Token (UUID string) used to unregister this subscription
@@ -182,7 +187,11 @@ class PostgresNotifier:
             pass
 
     async def listen(
-        self, channel: str, callback: Callable[[str, dict], Any], wait: bool = True
+        self,
+        channel: str,
+        callback: Callable[[str, dict], Any],
+        wait: bool = True,
+        timeout: float | None = None,
     ) -> str:
         token = str(uuid4())
 
@@ -194,7 +203,7 @@ class PostgresNotifier:
         self._subscriptions[channel][token] = callback
 
         if wait and channel in self._listen_events:
-            await self._listen_events[channel].wait()
+            await asyncio.wait_for(self._listen_events[channel].wait(), timeout=timeout)
 
         return token
 
