@@ -47,7 +47,7 @@ ifndef VERSION
 endif
 	rm -rf dist
 	uv version $(VERSION)
-	git add pyproject.toml uv.lock
+	git add pyproject.toml uv.lock CHANGELOG.md
 	git commit -m "Release v$(VERSION)"
 	git tag v$(VERSION)
 	uv build
