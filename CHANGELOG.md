@@ -40,10 +40,21 @@ metrics = true
 
   Existing `oban-py` created schemas require the following migration:
 
-  ```
+  ```sql
+  CREATE OR REPLACE FUNCTION jsonb_to_text_array(jsonb) RETURNS text[] AS $$
+      SELECT COALESCE(array_agg(x), '{}') FROM jsonb_array_elements_text($1) AS x;
+  $$ LANGUAGE sql IMMUTABLE;
+
+  UPDATE oban_jobs SET tags = '[]'::jsonb WHERE tags IS NULL;
+  ALTER TABLE oban_jobs ALTER COLUMN tags DROP DEFAULT;
+
   ALTER TABLE oban_jobs
-  ALTER COLUMN tags TYPE text[]
-  USING array(SELECT jsonb_array_elements_text(tags));
+      ALTER COLUMN tags TYPE text[]
+      USING jsonb_to_text_array(tags);
+
+  ALTER TABLE oban_jobs ALTER COLUMN tags SET DEFAULT '{}';
+
+  DROP FUNCTION jsonb_to_text_array(jsonb);
   ```
 
 ### Enhancements
