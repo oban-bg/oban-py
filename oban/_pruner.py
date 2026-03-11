@@ -5,12 +5,20 @@ import logging
 from typing import TYPE_CHECKING
 
 from . import telemetry
+from ._extensions import use_ext
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._leader import Leader
     from ._query import Query
+
+
+async def _prune(query: Query, max_age: int, limit: int) -> None:
+    with telemetry.span("oban.pruner.prune", {}) as context:
+        pruned = await query.prune_jobs(max_age, limit)
+
+        context.add({"pruned_count": pruned})
 
 
 class Pruner:
@@ -90,7 +98,4 @@ class Pruner:
                 logger.exception("Error in pruner")
 
     async def _prune(self) -> None:
-        with telemetry.span("oban.pruner.prune", {}) as context:
-            pruned = await self._query.prune_jobs(self._max_age, self._limit)
-
-            context.add({"pruned_count": pruned})
+        await use_ext("pruner.prune", _prune, self._query, self._max_age, self._limit)
