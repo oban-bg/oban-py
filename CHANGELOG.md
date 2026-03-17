@@ -24,6 +24,26 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.1 — 2026-03-17
+
+### Enhancements
+
+- [Pruner] Add extension point for pruner
+
+  Apply the `put_ext` extension pattern to the pruner module, allowing customized pruning
+  behavior.
+
+### Bug Fixes
+
+- [Worker] Fix static analysis errors on decorated workers
+
+  Static analysis tools (pyright, mypy, pylint) previously reported false-positive errors because
+  the `enqueue` and `new` methods were dynamically added at runtime with no type hints.
+
+  This introduces a `Worker` Protocol that decorated classes implement, enabling editors and type
+  checkers to provide accurate autocomplete and eliminate "unknown attribute" warnings.
+
+
 ## v0.6.0 — 2026-02-23
 
 ### Breaking Changes
