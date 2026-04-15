@@ -95,11 +95,10 @@ class _LoggerHandler:
         return data
 
     def _get_level(self, name: str) -> int:
-        # TODO: This is a mess.
-        if name.endswith(".exception") and name != "oban.job.exception":
-            return logging.ERROR
-        elif name.startswith("oban.job"):
+        if name.startswith("oban.job"):
             return self.level
+        elif name.endswith(".exception"):
+            return logging.ERROR
         else:
             return logging.DEBUG
 
