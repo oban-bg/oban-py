@@ -313,6 +313,7 @@ class Scheduler:
         self._timezone = ZoneInfo(timezone)
 
         self._loop_task = None
+        self._last_evaluated_minute = None
 
     async def start(self) -> None:
         self._loop_task = asyncio.create_task(self._loop(), name="oban-cron")
@@ -334,6 +335,15 @@ class Scheduler:
                 await asyncio.sleep(self._time_to_next_minute())
 
                 if self._leader.is_leader:
+                    now = datetime.now(timezone.utc)
+                    minute_key = (now.year, now.month, now.day, now.hour, now.minute)
+
+                    # Guard against backward wall-clock steps (NTP, VM resume) re-entering
+                    # a minute we've already evaluated on this leader.
+                    if minute_key == self._last_evaluated_minute:
+                        continue
+
+                    self._last_evaluated_minute = minute_key
                     await self._evaluate()
             except asyncio.CancelledError:
                 break
