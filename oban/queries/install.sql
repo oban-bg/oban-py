@@ -90,7 +90,7 @@ ON oban_jobs (state, queue, priority, scheduled_at, id)
 WITH (fillfactor = 90);
 
 CREATE INDEX IF NOT EXISTS oban_jobs_staging_index
-ON oban_jobs (scheduled_at, id)
+ON oban_jobs (scheduled_at, id) INCLUDE (queue)
 WHERE state IN ('scheduled', 'retryable');
 
 CREATE INDEX IF NOT EXISTS oban_jobs_completed_at_index
