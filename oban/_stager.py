@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
+from ._looper import Looper
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from ._query import Query
 
 
-class Stager:
+class Stager(Looper):
     """Manages moving jobs to the 'available' state and notifying queues.
 
     This class is managed internally by Oban and shouldn't be constructed directly.

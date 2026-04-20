@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from . import telemetry
+from ._looper import Looper
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from ._query import Query
 
 
-class Leader:
+class Leader(Looper):
     """Manages leadership election and coordination across Oban nodes.
 
     This class is managed internally by Oban and shouldn't be constructed directly.

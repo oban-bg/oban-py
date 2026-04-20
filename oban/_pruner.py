@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
+from ._looper import Looper
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ async def _prune(query: Query, max_age: int, limit: int) -> None:
         context.add({"pruned_count": pruned})
 
 
-class Pruner:
+class Pruner(Looper):
     """Manages periodic deletion of completed, cancelled, and discarded jobs.
 
     This class is managed internally by Oban and shouldn't be constructed directly.

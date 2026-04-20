@@ -10,6 +10,7 @@ from uuid import uuid4
 from . import telemetry
 from ._executor import Executor
 from ._extensions import use_ext
+from ._looper import Looper
 from .job import Job
 
 if TYPE_CHECKING:
@@ -100,7 +101,7 @@ class QueueInfo:
     """Unique identifier for this producer instance."""
 
 
-class Producer:
+class Producer(Looper):
     def __init__(
         self,
         *,

@@ -9,6 +9,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from . import telemetry
+from ._looper import Looper
 from .job import JobState
 from ._scheduler import ScheduledEntry, cron_hash, scheduled_entries
 from .worker import worker_name
@@ -54,7 +55,7 @@ def _build_sketch(values: list[int]) -> dict[str, Any]:
 ALL_STATES = list(JobState)
 
 
-class Metrics:
+class Metrics(Looper):
     def __init__(
         self,
         *,

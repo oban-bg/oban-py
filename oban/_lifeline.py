@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
+from ._looper import Looper
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ async def _rescue(query: Query, rescue_after: float) -> None:
         context.add({"rescued_count": rescued})
 
 
-class Lifeline:
+class Lifeline(Looper):
     def __init__(
         self,
         *,

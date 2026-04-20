@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from . import telemetry
+from ._looper import Looper
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     from ._query import Query
 
 
-class Refresher:
+class Refresher(Looper):
     def __init__(
         self,
         *,

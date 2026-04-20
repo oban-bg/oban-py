@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import orjson
 
 from . import telemetry
+from ._looper import Looper
 from .worker import worker_name
 
 logger = logging.getLogger(__name__)
@@ -285,7 +286,7 @@ class Expression:
         )
 
 
-class Scheduler:
+class Scheduler(Looper):
     """Manages periodic job scheduling based on cron expressions.
 
     This class is managed internally by Oban and shouldn't be constructed directly.
