@@ -24,6 +24,38 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.2 — 2026-04-22
+
+### Enhancements
+
+- [Looper] Introduce a protocol for lifecycle components
+
+  Add a shared Looper protocol describing the start/stop/_loop lifecycle used by background
+  components, and apply it to Stager, Pruner, Scheduler, Refresher, Lifeline, Leader, Metrics, and
+  Producer. This documents the contract explicitly and enables uniform handling of lifecycle
+  loopers.
+
+- [Stager] Include queue in the staging index
+
+  The staging index is now referenced by stage_jobs to filter jobs down to the set of running
+  queues. Adding queue as an INCLUDE column lets that filter apply during the index scan while
+  keeping the (scheduled_at, id) ordering that the LIMIT relies on.
+
+- [Stager] Restrict stage_jobs to active queues
+
+  Previously the `stage_jobs` query transitioned any scheduled or retryable job whose time had
+  come, regardless of whether its queue was running on the node. That let idle queues churn jobs
+  into the available state with nothing around to execute them. Stage only jobs belonging to the
+  running queues passed in by the stager.
+
+### Bug Fixes
+
+- [Scheduler] Guard scheduler against backward wall-clock steps
+
+  Track the last evaluated wall-clock minute on the scheduler and skip re-entry when the clock
+  steps backward (NTP adjustment, VM resume) into a minute that was already handled. Prevents
+  duplicate cron inserts without introducing catch-up semantics, so healthy clocks are unaffected.
+
 ## v0.6.1 — 2026-03-17
 
 ### Enhancements
