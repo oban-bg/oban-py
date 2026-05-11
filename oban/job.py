@@ -51,6 +51,9 @@ class Snooze:
     Return this from a worker's process method to put the job back in the queue
     with a delayed scheduled_at time.
 
+    An optional `meta` dict is merged into the job's meta on snooze, alongside
+    the standard `snoozed` counter.
+
     Example:
         >>> async def process(self, job):
         ...     if not ready_to_process():
@@ -58,6 +61,7 @@ class Snooze:
     """
 
     seconds: int
+    meta: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)

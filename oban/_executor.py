@@ -113,13 +113,18 @@ class Executor:
                     job=self.job, state="cancelled", error=self._format_error(reason)
                 )
 
-            case Snooze(seconds=seconds):
+            case Snooze(seconds=seconds, meta=extra_meta):
+                meta = {"snoozed": self.job.meta.get("snoozed", 0) + 1}
+
+                if extra_meta:
+                    meta.update(extra_meta)
+
                 self.action = AckAction(
                     job=self.job,
                     attempt_change=-1,
                     state="scheduled",
                     schedule_in=seconds,
-                    meta={"snoozed": self.job.meta.get("snoozed", 0) + 1},
+                    meta=meta,
                 )
 
             case Record(encoded=encoded):
