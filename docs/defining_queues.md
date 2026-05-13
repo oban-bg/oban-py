@@ -79,7 +79,7 @@ queues at runtime.
 ## Queue Guidelines
 
 There isn't a limit to the number of queues or how many jobs may execute concurrently in each
-xqueue. Only jobs in the configured queues will execute. Jobs in any other queue will stay in the
+queue. Only jobs in the configured queues will execute. Jobs in any other queue will stay in the
 database untouched. Be sure to configure all queues you intend to use.
 
 Also consider these important guidelines:
