@@ -110,6 +110,13 @@ async def _ack_jobs(query: Query, acks: list[AckAction]) -> list[int]:
             return acked_ids
 
 
+async def _reset(query: Query) -> None:
+    async with query._pool.connection() as conn:
+        stmt = Query._load_file("reset.sql", query._prefix)
+
+        await conn.execute(stmt)
+
+
 async def _insert_jobs(
     query: Query, jobs: list[Job], conn: ConnectionLike = None
 ) -> list[Job]:
@@ -377,10 +384,7 @@ class Query:
             await conn.execute(stmt)
 
     async def reset(self) -> None:
-        async with self._pool.connection() as conn:
-            stmt = self._load_file("reset.sql", self._prefix)
-
-            await conn.execute(stmt)
+        return await use_ext("query.reset", _reset, self)
 
     async def uninstall(self) -> None:
         async with self._pool.connection() as conn:
