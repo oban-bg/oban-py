@@ -105,6 +105,29 @@ class TestMerge:
         assert conf.pruner == {"max_age": 3600, "interval": 120}
 
 
+class TestLoad:
+    def test_toml_values_survive_when_env_vars_unset(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        config_file = tmp_path / "oban.toml"
+        config_file.write_text(
+            dedent(
+                """
+                prefix = "myschema"
+                pool_max_size = 50
+                """
+            ).strip()
+        )
+
+        monkeypatch.setenv("OBAN_DSN", "postgresql://localhost/test")
+
+        conf = Config.load()
+
+        assert conf.dsn == "postgresql://localhost/test"
+        assert conf.prefix == "myschema"
+        assert conf.pool_max_size == 50
+
+
 class TestFromToml:
     def test_from_toml_with_explicit_path(self, tmp_path):
         config_file = tmp_path / "test_config.toml"

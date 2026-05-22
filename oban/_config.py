@@ -34,12 +34,12 @@ class Config:
     scheduler: dict[str, Any] | None = None
     stager: dict[str, Any] | None = None
 
-    pool_min_size: int = 1
-    pool_max_size: int = 10
-    pool_timeout: float = 30.0
-    pool_max_lifetime: float = 3600.0
-    pool_max_idle: float = 600.0
-    pool_check: bool = False
+    pool_min_size: int | None = None
+    pool_max_size: int | None = None
+    pool_timeout: float | None = None
+    pool_max_lifetime: float | None = None
+    pool_max_idle: float | None = None
+    pool_check: bool | None = None
 
     @staticmethod
     def _parse_queues(input: str) -> dict[str, int]:
@@ -57,29 +57,47 @@ class Config:
     def from_env(cls) -> Config:
         """Load configuration from environment variables.
 
+        Only fields with a corresponding env var actually set are populated;
+        unset fields stay at their default so `merge()` can defer to other
+        sources (e.g. a TOML file).
+
         Supported environment variables:
 
         - OBAN_DSN: Database connection string (required)
         - OBAN_QUEUES: Comma-separated queue:limit pairs (e.g., "default:10,mailers:5")
-        - OBAN_PREFIX: Schema prefix (default: "public")
-        - OBAN_NODE: Node identifier (default: hostname)
-        - OBAN_POOL_MIN_SIZE: Minimum connection pool size (default: 1)
-        - OBAN_POOL_MAX_SIZE: Maximum connection pool size (default: 10)
-        - OBAN_POOL_MAX_LIFETIME: Max seconds before recycling a connection (default: 3600)
-        - OBAN_POOL_MAX_IDLE: Max seconds a connection can sit idle (default: 600)
-        - OBAN_POOL_CHECK: Validate connections before use (default: false)
+        - OBAN_PREFIX: Schema prefix
+        - OBAN_NODE: Node identifier
+        - OBAN_POOL_MIN_SIZE: Minimum connection pool size
+        - OBAN_POOL_MAX_SIZE: Maximum connection pool size
+        - OBAN_POOL_TIMEOUT: Seconds to wait for a connection from the pool
+        - OBAN_POOL_MAX_LIFETIME: Max seconds before recycling a connection
+        - OBAN_POOL_MAX_IDLE: Max seconds a connection can sit idle
+        - OBAN_POOL_CHECK: Validate connections before use
         """
-        return cls(
-            dsn=os.getenv("OBAN_DSN"),
-            queues=cls._parse_queues(os.getenv("OBAN_QUEUES", "")),
-            node=os.getenv("OBAN_NODE"),
-            prefix=os.getenv("OBAN_PREFIX", "public"),
-            pool_min_size=int(os.getenv("OBAN_POOL_MIN_SIZE", "1")),
-            pool_max_size=int(os.getenv("OBAN_POOL_MAX_SIZE", "10")),
-            pool_max_lifetime=float(os.getenv("OBAN_POOL_MAX_LIFETIME", "3600")),
-            pool_max_idle=float(os.getenv("OBAN_POOL_MAX_IDLE", "600")),
-            pool_check=os.getenv("OBAN_POOL_CHECK", "false").lower() == "true",
-        )
+        params: dict[str, Any] = {}
+
+        if (value := os.getenv("OBAN_DSN")) is not None:
+            params["dsn"] = value
+        if (value := os.getenv("OBAN_QUEUES")) is not None:
+            params["queues"] = cls._parse_queues(value)
+        if (value := os.getenv("OBAN_NODE")) is not None:
+            params["node"] = value
+        if (value := os.getenv("OBAN_PREFIX")) is not None:
+            params["prefix"] = value
+        if (value := os.getenv("OBAN_POOL_MIN_SIZE")) is not None:
+            params["pool_min_size"] = int(value)
+        if (value := os.getenv("OBAN_POOL_MAX_SIZE")) is not None:
+            params["pool_max_size"] = int(value)
+        if (value := os.getenv("OBAN_POOL_TIMEOUT")) is not None:
+            params["pool_timeout"] = float(value)
+        if (value := os.getenv("OBAN_POOL_MAX_LIFETIME")) is not None:
+            params["pool_max_lifetime"] = float(value)
+        if (value := os.getenv("OBAN_POOL_MAX_IDLE")) is not None:
+            params["pool_max_idle"] = float(value)
+        if (value := os.getenv("OBAN_POOL_CHECK")) is not None:
+            params["pool_check"] = value.lower() == "true"
+
+        return cls(**params)
 
     @classmethod
     def from_cli(cls, params: dict[str, Any]) -> Config:
@@ -137,14 +155,23 @@ class Config:
         if not self.dsn:
             raise ValueError("dsn is required to create a connection pool")
 
+        min_size = self.pool_min_size if self.pool_min_size is not None else 1
+        max_size = self.pool_max_size if self.pool_max_size is not None else 10
+        timeout = self.pool_timeout if self.pool_timeout is not None else 30.0
+        max_lifetime = (
+            self.pool_max_lifetime if self.pool_max_lifetime is not None else 3600.0
+        )
+        max_idle = self.pool_max_idle if self.pool_max_idle is not None else 600.0
+        check = AsyncConnectionPool.check_connection if self.pool_check else None
+
         pool = AsyncConnectionPool(
             conninfo=self.dsn,
-            min_size=self.pool_min_size,
-            max_size=self.pool_max_size,
-            timeout=self.pool_timeout,
-            max_lifetime=self.pool_max_lifetime,
-            max_idle=self.pool_max_idle,
-            check=AsyncConnectionPool.check_connection if self.pool_check else None,
+            min_size=min_size,
+            max_size=max_size,
+            timeout=timeout,
+            max_lifetime=max_lifetime,
+            max_idle=max_idle,
+            check=check,
             open=False,
         )
 
