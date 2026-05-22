@@ -12,7 +12,7 @@ Before setting up the dashboard, enable metrics broadcasting in your `oban.toml`
 metrics = true
 ```
 
-This broadcasts queue state, job execution metrics, and cron schedules via PostgreSQL pub/sub,
+This broadcasts queue state, job execution metrics, and cron schedules via PostgreSQL pubsub,
 which the dashboard uses for real-time updates.
 
 ## Running the Dashboard
@@ -47,35 +47,8 @@ Configure the dashboard using environment variables:
 | `BASIC_AUTH_USER` | No       | —        | Basic auth username             |
 | `BASIC_AUTH_PASS` | No       | —        | Basic auth password             |
 
-## Authentication
-
-Enable HTTP Basic Authentication for production deployments:
-
-```bash
-docker run -d \
-  -e DATABASE_URL="postgres://user:pass@host.docker.internal:5432/myapp" \
-  -e BASIC_AUTH_USER="admin" \
-  -e BASIC_AUTH_PASS="secret" \
-  -p 4000:4000 \
-  ghcr.io/oban-bg/oban-dash
-```
-
-## Read-Only Mode
-
-Disable job actions (cancel, retry, delete) by enabling read-only mode:
-
-```bash
-docker run -d \
-  -e DATABASE_URL="postgres://user:pass@host.docker.internal:5432/myapp" \
-  -e OBAN_READ_ONLY="true" \
-  -p 4000:4000 \
-  ghcr.io/oban-bg/oban-dash
-```
-
-## Health Checks
-
-The dashboard exposes a health check endpoint at `/health` that returns `{"status":"ok"}`.
-Docker's built-in `HEALTHCHECK` monitors this endpoint automatically.
+Set `BASIC_AUTH_USER` and `BASIC_AUTH_PASS` to require HTTP Basic Auth, or `OBAN_READ_ONLY=true`
+to disable job actions (cancel, retry, delete).
 
 ## Tuning Metrics
 
@@ -122,3 +95,9 @@ counts_enabled = false
 
 The Elixir instance will handle broadcasting job counts, while Python workers still report their
 own execution metrics (timing, throughput, etc.).
+
+```{important}
+Metrics are delivered exclusively over PostgreSQL pubsub. Both your Python application and the
+Elixir application hosting the dashboard must use the Postgres notifier. If you've swapped in an
+alternative notifier, e.g. `Oban.Notifiers.PG`, the dashboard won't receive metrics.
+```
