@@ -81,6 +81,32 @@ oban = Oban(pool=pool, queues={"default": 10}, metrics=True)
 
 See the [Web Dashboard](web_dashboard.md) guide for setup instructions.
 
+## Sizing the Connection Pool
+
+Oban runs its queries through a psycopg connection pool bounded by `pool_min_size` and
+`pool_max_size`, which default to `1` and `10`.
+
+A common mistake is to assume you need one connection per concurrently running job. You don't.
+Workers only borrow a connection *briefly*—to fetch a batch of jobs or acknowledge results—then
+return it. A queue with a limit of `100` does not hold `100` connections. What draws from the pool
+are short, concurrent operations: producers fetching jobs, maintenance tasks (stager, scheduler,
+pruner, lifeline), and your application calling `enqueue`. The PostgreSQL notifier keeps its own
+dedicated connection outside the pool, so pubsub needs no pool slot.
+
+The default of `10` is comfortable for most deployments. Raise `pool_max_size` if you enqueue at
+high volume from many concurrent requests, or if you see timeouts acquiring a connection. Don't
+oversize: every connection is a real backend, and the total across all your nodes counts against
+Postgres's `max_connections` (and any PgBouncer limits).
+
+Set the bounds in `oban.toml`:
+
+```toml
+pool_min_size = 2
+pool_max_size = 20
+```
+
+Or directly in embedded mode via `Oban.create_pool(min_size=2, max_size=20)`.
+
 ## Ship It!
 
 Whether you're using the CLI or embedded mode, you now have:
