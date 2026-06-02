@@ -24,6 +24,26 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.3 — 2026-06-02
+
+### Enhancement
+
+- [Schema] Make reset query extensible
+
+  Promote reset to an extension pattern so downstream packages can wrap it. The default behavior
+  is unchanged.
+
+- [Config] Fix Config ENV defaults clobbering TOML values
+
+  `Config.from_env` populated fields with hard-coded defaults, and the dataclass itself defaulted
+  those fields to concrete values rather than None. The merge logic couldn't distinguish a set
+  value from a default, so loading via `Config.load()` silently overrode anything set in toml
+  whenever the corresponding env var was unset.
+
+- [Job] Add optional meta field to snooze dataclass
+
+  The new slot allows smuggling additional snooze related data through snooze acking operations.
+
 ## v0.6.2 — 2026-04-22
 
 ### Enhancements
