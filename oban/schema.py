@@ -4,9 +4,6 @@ from typing import Any
 
 from ._query import Query
 
-INITIAL_VERSION = 1
-CURRENT_VERSION = 1
-
 
 def install_sql(prefix: str = "public") -> str:
     """Get the SQL for installing Oban.

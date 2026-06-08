@@ -146,7 +146,3 @@ BEGIN
 END;
 $func$
 LANGUAGE plpgsql;
-
--- Version
-
-COMMENT ON TABLE oban_jobs IS '1';
