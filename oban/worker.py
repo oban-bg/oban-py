@@ -5,6 +5,7 @@ implement, providing type hints for static analysis tools.
 """
 
 import importlib
+from collections.abc import Mapping
 from typing import Any, Protocol
 
 from .job import Job, Result
@@ -34,7 +35,7 @@ class Worker(Protocol):
     _oban_name: str
 
     @classmethod
-    def new(cls, args: dict[str, Any] | None = None, /, **params) -> Job:
+    def new(cls, args: Mapping[str, Any] | None = None, /, **params) -> Job:
         """Create a Job instance without enqueueing it.
 
         Args:
@@ -48,7 +49,7 @@ class Worker(Protocol):
 
     @classmethod
     async def enqueue(
-        cls, args: dict[str, Any] | None = None, /, conn=None, **overrides
+        cls, args: Mapping[str, Any] | None = None, /, conn=None, **overrides
     ) -> Job:
         """Create and enqueue a Job.
 
