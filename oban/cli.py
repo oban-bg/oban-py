@@ -86,7 +86,7 @@ def _import_cron_paths(paths: list[str]) -> list[str]:
 
     found = []
     for pattern in [str(root / path) for path in paths]:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 — fixed grep argv, no shell, scans local project files
             [*grep, pattern],
             capture_output=True,
             text=True,
@@ -103,8 +103,8 @@ def _import_cron_paths(paths: list[str]) -> list[str]:
         if not candidates:
             continue
 
-        result = subprocess.run(
-            ["grep", "-l", r"cron=", *candidates],
+        result = subprocess.run(  # noqa: S603 — fixed grep argv, no shell
+            ["grep", "-l", r"cron=", *candidates],  # noqa: S607 — grep resolved via PATH
             capture_output=True,
             text=True,
             check=False,

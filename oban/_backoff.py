@@ -32,7 +32,7 @@ def jitter(
     Returns:
         Time with jitter applied
     """
-    rand = random.random()
+    rand = random.random()  # noqa: S311 — jitter, not used for anything cryptographic
     diff = int(rand * mult * time)
 
     match mode:

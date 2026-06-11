@@ -72,6 +72,13 @@ docs = [
 [tool.uv]
 package = true
 
+[tool.ruff.lint]
+extend-select = ["S"]
+
+[tool.ruff.lint.per-file-ignores]
+"test/**" = ["S101", "S311", "S608"]
+"examples/**" = ["S101"]
+
 [tool.setuptools.packages.find]
 include = ["oban*"]
 

@@ -183,7 +183,8 @@ class PostgresNotifier:
 
         try:
             await self._conn.close()
-        except Exception:
+        except Exception:  # noqa: S110
+            # Best-effort close during teardown; nothing actionable on failure.
             pass
 
     async def listen(
