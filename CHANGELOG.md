@@ -24,6 +24,39 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.4 — 2026-06-16
+
+### Enhancement
+
+- [Job] Use `Mapping` instead of `dict` for job args type
+
+  This will allow users to pass a `TypedDict` as the job args parameter, as well as a normal
+  dictionary.
+
+### Bug Fixes
+
+- [Producer] Prevent exceeding max_attempts during fetch
+
+  A stale worker whose job had been rescued and re-fetched elsewhere could ack the job back into a
+  fetchable state at its attempt ceiling. The next fetch would then increment the counter past
+  max_attempts, tripping the `attempt_range` check constraint. Because jobs are fetched in a
+  single batched update, one offending row aborted the entire fetch and permanently stalled the
+  queue.
+
+  Ack queries now only apply to jobs that are still executing, so a duplicate worker can no longer
+  resurrect a job another node has taken over. Fetch skips any job already at its attempt ceiling,
+  and the rescuer discards jobs stranded as available with no remaining attempts.
+
+- [Schema] Stop setting the schema version comment
+
+  The install task set a "1" comment on `oban_jobs` to mark the schema version, but nothing in the
+  Python codebase ever read it back. In a co-located Elixir + Python deployment this clobbered the
+  version Elixir records (e.g. "14"), breaking Elixir's migration version check and raising at
+  runtime.
+
+  Since the install is already idempotent and Python verifies its schema by checking table
+  existence, drop the comment entirely and leave the Elixir version untouched.
+
 ## v0.6.3 — 2026-06-02
 
 ### Enhancement
