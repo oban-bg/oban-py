@@ -14,5 +14,8 @@ SET
     ELSE meta || jsonb_build_object('rescued', coalesce((meta->>'rescued')::int, 0) + 1)
   END
 WHERE
-  state = 'executing'
-  AND attempted_at < timezone('UTC', now()) - make_interval(secs => %(rescue_after)s)
+  (
+    state = 'executing'
+    AND attempted_at < timezone('UTC', now()) - make_interval(secs => %(rescue_after)s)
+  )
+  OR (state = 'available' AND attempt >= max_attempts)

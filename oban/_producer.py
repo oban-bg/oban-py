@@ -289,15 +289,12 @@ class Producer(Looper):
 
     async def _ack_jobs(self):
         with telemetry.span("oban.producer.ack", {"queue": self._queue}) as context:
-            if self._pending_acks:
-                acked_ids = await self._query.ack_jobs(self._pending_acks)
-                acked_set = set(acked_ids)
+            acked_ids = []
 
-                self._pending_acks = [
-                    ack for ack in self._pending_acks if ack.id not in acked_set
-                ]
-            else:
-                acked_ids = []
+            if self._pending_acks:
+                count = len(self._pending_acks)
+                acked_ids = await self._query.ack_jobs(self._pending_acks[:count])
+                self._pending_acks = self._pending_acks[count:]
 
             context.add({"count": len(acked_ids)})
 

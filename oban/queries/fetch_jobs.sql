@@ -23,6 +23,7 @@ FROM
   locked_jobs
 WHERE
   oj.id = locked_jobs.id
+  AND oj.attempt < oj.max_attempts
 RETURNING
   oj.id,
   oj.state,

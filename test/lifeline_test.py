@@ -31,6 +31,21 @@ async def insert_executing_job(
     return id
 
 
+async def insert_available_job(conn, attempt=20, max_attempts=20):
+    rows = await conn.execute(
+        """
+        INSERT INTO oban_jobs (state, worker, attempt, max_attempts)
+        VALUES ('available', 'Worker', %s, %s)
+        RETURNING id
+        """,
+        (attempt, max_attempts),
+    )
+
+    (id,) = await rows.fetchone()
+
+    return id
+
+
 async def get_job(conn, job_id):
     rows = await conn.execute(
         "SELECT id, state, meta, discarded_at FROM oban_jobs WHERE id = %s", (job_id,)
@@ -144,5 +159,34 @@ class TestLifeline:
         assert job[1] == "discarded"
         assert "rescued" not in job[2]
         assert job[3] is not None
+
+        await oban.stop()
+
+    @pytest.mark.oban(leadership=True, queues={"alpha": 1})
+    async def test_lifeline_discards_stranded_available_jobs(self, oban_instance):
+        oban = oban_instance()
+
+        async with oban._connection() as conn:
+            async with conn.transaction():
+                stranded = await insert_available_job(conn, attempt=20, max_attempts=20)
+                ready = await insert_available_job(conn, attempt=0, max_attempts=20)
+
+        await oban.start()
+
+        # Force synchronous rescue
+        await oban._lifeline._rescue()
+
+        async with oban._connection() as conn:
+            stranded_job = await get_job(conn, stranded)
+            ready_job = await get_job(conn, ready)
+
+        # The maxed-out available job is unfetchable, so it's discarded outright.
+        assert stranded_job[1] == "discarded"
+        assert "rescued" not in stranded_job[2]
+        assert stranded_job[3] is not None
+
+        # A fetchable available job is left untouched.
+        assert ready_job[1] == "available"
+        assert ready_job[3] is None
 
         await oban.stop()

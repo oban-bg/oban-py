@@ -8,4 +8,5 @@ SET state = %(state)s::oban_job_state,
     errors = CASE WHEN %(error)s::jsonb IS NULL THEN errors ELSE errors || %(error)s::jsonb END,
     meta = CASE WHEN %(meta)s::jsonb IS NULL THEN meta ELSE meta || %(meta)s::jsonb END
 WHERE id = %(id)s
+  AND state = 'executing'
 RETURNING id;
