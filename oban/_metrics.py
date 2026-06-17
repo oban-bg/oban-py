@@ -116,8 +116,9 @@ class Metrics(Looper):
     async def _loop(self) -> None:
         while True:
             try:
-                await self.broadcast()
                 await asyncio.sleep(self._interval)
+
+                await self.broadcast()
             except asyncio.CancelledError:
                 break
             except Exception:
