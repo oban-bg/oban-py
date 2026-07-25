@@ -24,6 +24,27 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.5 — 2026-07-25
+
+### Enhancements
+
+- [Dispatcher] Delegate job cancellation through dispatcher
+
+  Allows dispatchers to cancel jobs across execution boundaries while preserving local
+  cancellation behavior.
+
+### Bug Fixes
+
+- [Metrics] Prevent busy-looping metrics broadcast errors
+
+  The metrics loop slept after broadcasting inside the same try block, so any exception from
+  broadcast skipped the sleep and immediately retried. When the connection pool was closed during
+  shutdown, this turned a single benign PoolClosed error into a flood of tracebacks logged as fast
+  as the loop could spin.
+
+  Move the sleep to the top of the loop, matching the other loopers, so failures back off for one
+  interval instead of hot-looping.
+
 ## v0.6.4 — 2026-06-16
 
 ### Enhancement
