@@ -1,8 +1,8 @@
 import asyncio
 import pytest
 
-from oban import telemetry, worker
-from oban._producer import Producer
+from oban import Job, telemetry, worker
+from oban._producer import LocalDispatcher, Producer
 
 
 async def all_producers(conn):
@@ -130,3 +130,41 @@ class TestProducerAcks:
             fetched = await oban.get_job(job.id)
             assert fetched is not None
             assert fetched.state == "completed"
+
+
+class TestProducerCancellation:
+    async def test_delegates_cancellation_to_dispatcher(self):
+        class TestDispatcher:
+            def __init__(self):
+                self.cancelled = []
+
+            def dispatch(self, producer, job):
+                raise NotImplementedError
+
+            def cancel(self, producer, job):
+                self.cancelled.append((producer, job))
+
+        dispatcher = TestDispatcher()
+        producer = Producer(
+            dispatcher=dispatcher,
+            limit=1,
+            name="Oban",
+            node="worker",
+            notifier=None,
+            query=None,
+            queue="default",
+        )
+        job = Job(worker="Worker", id=1)
+        producer._running_jobs[job.id] = (job, None)
+
+        await producer._on_signal("signal", {"action": "pkill", "job_id": job.id})
+
+        assert dispatcher.cancelled == [(producer, job)]
+
+    def test_local_dispatcher_sets_cancellation_event(self):
+        job = Job(worker="Worker")
+        job._cancellation = asyncio.Event()
+
+        LocalDispatcher().cancel(None, job)
+
+        assert job.cancelled()

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 from . import telemetry
@@ -67,9 +67,19 @@ async def _get_jobs(producer: Producer) -> list[Job]:
         return []
 
 
+class Dispatcher(Protocol):
+    def dispatch(self, producer: Producer, job: Job) -> asyncio.Task: ...
+
+    def cancel(self, producer: Producer, job: Job) -> None: ...
+
+
 class LocalDispatcher:
     def dispatch(self, producer: Producer, job: Job) -> asyncio.Task:
         return asyncio.create_task(producer._execute(job))
+
+    def cancel(self, producer: Producer, job: Job) -> None:
+        if job._cancellation:
+            job._cancellation.set()
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +116,7 @@ class Producer(Looper):
         self,
         *,
         debounce_interval: float = 0.005,
-        dispatcher: Any = None,
+        dispatcher: Dispatcher | None = None,
         limit: int = 10,
         paused: bool = False,
         queue: str = "default",
@@ -339,4 +349,4 @@ class Producer(Looper):
                 if job_id in self._running_jobs:
                     (job, _task) = self._running_jobs[job_id]
 
-                    job._cancellation.set()
+                    self._dispatcher.cancel(self, job)
