@@ -24,6 +24,47 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.6 — 2026-09-03
+
+### Bug Fixes
+
+- [Oban] Default node name to hostname and process id
+
+  Node names defaulted to the hostname, so multiple Oban processes on one host shared an identity.
+  Leadership is tracked by node name, which let each process renew the other's lease and act as
+  leader simultaneously, and a sibling shutting down deleted the active leader's row.
+
+  We now append the current process id so the default is unique per running instance. Deployments
+  that target nodes by name for pausing or scaling queues must use the new form, or set
+  `OBAN_NODE` explicitly as before.
+
+- [Leader] Serialize elections and concede on failure
+
+  Elections triggered by resignation could overlap with the regular election loop, which let stale
+  results overwrite newer results. Now run elections one at a time, enforced with a lock. If
+  election fails either way, leadership is conceded.
+
+- [Leader] Renew leader lease with a single scoped upsert
+
+  Leader election used separate queries for acquiring and renewing the lease. The acquire query
+  did nothing on conflict, so a node whose row was already stored could never confirm its own
+  leadership, leaving the cluster without a leader until the lease expired.
+
+  Use one upsert that inserts when no lease exists and refreshes only when the row belongs to the
+  same node, matching how Oban does it in Elixir.
+
+- [Scheduler] Evaluate cron entries against the target minute
+
+  The scheduler slept until the next minute and then evaluated whichever wall-clock minute it woke
+  during. Under `uvloop`, timers can fire a _fraction_ of a millisecond early, so waking could
+  land in the previous minute and either enqueue a duplicate or entirely skip the desired minute.
+
+  Now we compute the target before sleeping, keep sleeping until the correct clock time, and use
+  that target regardless of wake time.
+
+  Also record the target as `cron_at` in job meta and telemetry, and log when a tick is skipped
+  for not being the leader.
+
 ## v0.6.5 — 2026-07-25
 
 ### Enhancements
