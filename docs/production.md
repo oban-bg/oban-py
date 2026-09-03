@@ -107,6 +107,19 @@ pool_max_size = 20
 
 Or directly in embedded mode via `Oban.create_pool(min_size=2, max_size=20)`.
 
+## Leadership
+
+Nodes that run queues take part in leader election, and only the leader runs cron scheduling and
+maintenance. The leader holds a lease in the database that it renews on the leader interval, and
+it announces when it exits so another node can take over immediately.
+
+That announcement travels over `LISTEN`/`NOTIFY`, which connection poolers in transaction mode,
+such as PgBouncer, don't support. Leadership still transfers in that setup, but only after the
+previous lease expires, which can take up to the leader interval of 30 seconds by default.
+
+Every instance needs a distinct node name for leadership to work, see the
+[node identity note](managing_queues.md) for the default and how to override it.
+
 ## Ship It!
 
 Whether you're using the CLI or embedded mode, you now have:
