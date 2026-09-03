@@ -1,4 +1,6 @@
 import asyncio
+import os
+import socket
 import pytest
 from datetime import datetime, timedelta, timezone
 
@@ -800,3 +802,15 @@ class TestScaleQueue:
         finally:
             await oban_1.stop()
             await oban_2.stop()
+
+
+class TestNodeIdentity:
+    async def test_default_node_combines_hostname_and_pid(self, oban_instance):
+        oban = oban_instance()
+
+        assert oban._node == f"{socket.gethostname()}.{os.getpid()}"
+
+    async def test_explicit_node_is_used_verbatim(self, oban_instance):
+        oban = oban_instance(node="web.1")
+
+        assert oban._node == "web.1"

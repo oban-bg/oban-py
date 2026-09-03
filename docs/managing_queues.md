@@ -129,6 +129,10 @@ virtual machine. In Python, a node is simply a single running instance of your a
 When you run `oban start` or start Oban embedded in your app, that process becomes a node with its
 own unique identifier. In a typical deployment, you might have multiple nodes (containers,
 servers, or processes) all running Oban and processing jobs _from the same database_.
+
+The default node name combines the hostname and process id, such as `web-1.4021`, so several
+processes on one host stay distinct. It can be overridden with the `node` option or the
+`OBAN_NODE` environment variable, but must be unique.
 ```
 
 ## Checking Queue State

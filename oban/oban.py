@@ -7,6 +7,7 @@ run in client mode (enqueueing only) or server mode (enqueueing and processing).
 from __future__ import annotations
 
 import asyncio
+import os
 import socket
 from collections.abc import Iterable
 from typing import Any, Callable
@@ -28,6 +29,11 @@ from ._stager import Stager
 QueueConfig = int | dict[str, Any]
 
 _instances: dict[str, Oban] = {}
+
+
+def _default_node() -> str:
+    # Leadership is tracked by node name, so the pid keeps processes on one host distinct.
+    return f"{socket.gethostname()}.{os.getpid()}"
 
 
 class Oban:
@@ -65,7 +71,8 @@ class Oban:
             metrics: Metrics broadcasting for Oban Web integration. Disabled by default.
                      Pass True to enable with defaults, or a dict with interval (default: 1.0).
             name: Name for this instance in the registry (default: "oban")
-            node: Node identifier for this instance (default: socket.gethostname())
+            node: Node identifier for this instance, which must be unique per running
+                instance (default: hostname and process id, e.g. "web-1.4021")
             notifier: Notifier instance for pub/sub (default: PostgresNotifier with default config)
             prefix: PostgreSQL schema where Oban tables are located (default: "public")
             pruner: Pruning config options: max_age in seconds (default: 86_400.0, 1 day),
@@ -82,7 +89,7 @@ class Oban:
 
         self._dispatcher = dispatcher
         self._name = name or "Oban"
-        self._node = node or socket.gethostname()
+        self._node = node or _default_node()
         self._prefix = prefix or "public"
         self._query = Query(pool, self._prefix)
 

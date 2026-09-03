@@ -5,7 +5,6 @@ import importlib
 import logging
 import os
 import signal
-import socket
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -19,6 +18,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from oban import __version__
 from oban._config import Config
+from oban.oban import _default_node
 from oban.schema import (
     install as install_schema,
     uninstall as uninstall_schema,
@@ -332,7 +332,7 @@ def uninstall(config: str | None, dsn: str | None, prefix: str | None) -> None:
 @click.option(
     "--node",
     envvar="OBAN_NODE",
-    help="Node identifier (default: hostname)",
+    help="Node identifier, unique per instance (default: hostname and pid)",
 )
 @click.option(
     "--pool-min-size",
@@ -402,7 +402,7 @@ def start(
     set_json_loads(orjson.loads)
 
     conf = _load_conf(config, params)
-    node = conf.node or socket.gethostname()
+    node = conf.node or _default_node()
 
     async def run() -> None:
         print_banner(__version__)
