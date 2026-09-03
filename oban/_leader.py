@@ -113,7 +113,7 @@ class Leader(Looper):
 
         with telemetry.span("oban.leader.election", meta) as context:
             self._is_leader = await self._query.attempt_leadership(
-                self._name, self._node, int(self._interval), self._is_leader
+                self._name, self._node, int(self._interval)
             )
 
             context.add({"leader": self._is_leader})

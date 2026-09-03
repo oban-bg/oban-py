@@ -4,6 +4,17 @@ from oban._leader import Leader
 from .helpers import with_backoff
 
 
+async def take_over(oban, expires_in):
+    async with oban._connection() as conn:
+        await conn.execute(
+            f"""
+            UPDATE oban_leaders
+            SET node = 'other-node',
+                expires_at = timezone('UTC', now()) + interval '{expires_in}'
+            """
+        )
+
+
 class TestLeaderValidation:
     def test_valid_config_passes(self):
         Leader._validate(interval=30.0)
@@ -38,8 +49,8 @@ class TestLeadership:
 
     @pytest.mark.oban(leadership=True)
     async def test_multiple_instances_elect_single_leader(self, oban_instance):
-        oban_1 = oban_instance()
-        oban_2 = oban_instance()
+        oban_1 = oban_instance(node="web.1")
+        oban_2 = oban_instance(node="web.2")
 
         await oban_1.start()
         await oban_2.start()
@@ -53,9 +64,38 @@ class TestLeadership:
             await oban_2.stop()
 
     @pytest.mark.oban(leadership=True)
+    async def test_retaining_leadership_while_lease_is_held(self, oban_instance):
+        async with oban_instance() as oban:
+            assert oban.is_leader
+
+            await oban._leader._election()
+
+            assert oban.is_leader
+
+    @pytest.mark.oban(leadership=True)
+    async def test_conceding_leadership_after_takeover(self, oban_instance):
+        async with oban_instance() as oban:
+            assert oban.is_leader
+
+            await take_over(oban, expires_in="30 seconds")
+            await oban._leader._election()
+
+            assert not oban.is_leader
+
+    @pytest.mark.oban(leadership=True)
+    async def test_assuming_leadership_after_lease_expires(self, oban_instance):
+        async with oban_instance() as oban:
+            assert oban.is_leader
+
+            await take_over(oban, expires_in="-1 seconds")
+            await oban._leader._election()
+
+            assert oban.is_leader
+
+    @pytest.mark.oban(leadership=True)
     async def test_leader_resigns_on_stop(self, oban_instance):
-        oban_1 = oban_instance()
-        oban_2 = oban_instance()
+        oban_1 = oban_instance(node="web.1")
+        oban_2 = oban_instance(node="web.2")
 
         try:
             await oban_1.start()
@@ -72,8 +112,8 @@ class TestLeadership:
 
     @pytest.mark.oban(leadership=True)
     async def test_leader_notifies_on_shutdown(self, oban_instance):
-        oban_1 = oban_instance()
-        oban_2 = oban_instance()
+        oban_1 = oban_instance(node="web.1")
+        oban_2 = oban_instance(node="web.2")
 
         try:
             await oban_1.start()

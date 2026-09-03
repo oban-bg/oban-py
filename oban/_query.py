@@ -346,9 +346,7 @@ class Query:
 
     # Leadership
 
-    async def attempt_leadership(
-        self, name: str, node: str, ttl: int, is_leader: bool
-    ) -> bool:
+    async def attempt_leadership(self, name: str, node: str, ttl: int) -> bool:
         async with self._pool.connection() as conn:
             async with conn.transaction():
                 cleanup_stmt = self._load_file(
@@ -357,11 +355,7 @@ class Query:
 
                 await conn.execute(cleanup_stmt)
 
-                if is_leader:
-                    elect_stmt = self._load_file("reelect_leader.sql", self._prefix)
-                else:
-                    elect_stmt = self._load_file("elect_leader.sql", self._prefix)
-
+                elect_stmt = self._load_file("elect_leader.sql", self._prefix)
                 args = {"name": name, "node": node, "ttl": ttl}
                 result = await conn.execute(elect_stmt, args)
                 rows = await result.fetchone()
