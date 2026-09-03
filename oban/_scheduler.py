@@ -314,7 +314,7 @@ class Scheduler(Looper):
         self._timezone = ZoneInfo(timezone)
 
         self._loop_task = None
-        self._last_evaluated_minute = None
+        self._last_target = None
 
     async def start(self) -> None:
         self._loop_task = asyncio.create_task(self._loop(), name="oban-cron")
@@ -333,30 +333,37 @@ class Scheduler(Looper):
     async def _loop(self) -> None:
         while True:
             try:
-                await asyncio.sleep(self._time_to_next_minute())
+                target = self._next_minute()
 
-                if self._leader.is_leader:
-                    now = datetime.now(timezone.utc)
-                    minute_key = (now.year, now.month, now.day, now.hour, now.minute)
+                await self._sleep_until(target)
 
-                    # Guard against backward wall-clock steps (NTP, VM resume) re-entering
-                    # a minute we've already evaluated on this leader.
-                    if minute_key == self._last_evaluated_minute:
-                        continue
+                if not self._leader.is_leader:
+                    logger.debug(
+                        "Skipping cron evaluation at %s, not the leader", target
+                    )
+                    continue
 
-                    self._last_evaluated_minute = minute_key
-                    await self._evaluate()
+                # Guard against backward wall-clock steps (NTP, VM resume) re-entering a
+                # minute this leader already evaluated.
+                if self._last_target and target <= self._last_target:
+                    continue
+
+                self._last_target = target
+
+                await self._evaluate(target)
             except asyncio.CancelledError:
                 break
             except Exception:
                 logger.exception("Error in scheduler")
 
-    async def _evaluate(self) -> None:
-        with telemetry.span("oban.scheduler.evaluate", {}) as context:
+    async def _evaluate(self, target: datetime) -> None:
+        cron_at = target.isoformat()
+
+        with telemetry.span("oban.scheduler.evaluate", {"cron_at": cron_at}) as context:
             jobs = [
-                self._build_job(entry)
+                self._build_job(entry, cron_at)
                 for entry in _scheduled_entries
-                if self._is_now(entry)
+                if self._is_now(entry, target)
             ]
 
             context.add({"enqueued_count": len(jobs)})
@@ -369,12 +376,12 @@ class Scheduler(Looper):
                     "insert", [{"queue": queue} for queue in queues]
                 )
 
-    def _is_now(self, entry: ScheduledEntry) -> bool:
-        now = datetime.now(entry.timezone or self._timezone)
+    def _is_now(self, entry: ScheduledEntry, target: datetime) -> bool:
+        local = target.astimezone(entry.timezone or self._timezone)
 
-        return entry.expression.is_now(now)
+        return entry.expression.is_now(local)
 
-    def _build_job(self, entry: ScheduledEntry) -> Job:
+    def _build_job(self, entry: ScheduledEntry, cron_at: str) -> Job:
         work_name = worker_name(entry.worker_cls)
         opts = {}
 
@@ -387,14 +394,23 @@ class Scheduler(Looper):
 
         job.meta = {
             "cron": True,
+            "cron_at": cron_at,
             "cron_expr": entry.expression.input,
             "cron_name": cron_name,
         }
 
         return job
 
-    def _time_to_next_minute(self, time: None | datetime = None) -> float:
-        time = time or datetime.now(timezone.utc)
-        next_minute = (time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+    def _now(self) -> datetime:
+        return datetime.now(timezone.utc)
 
-        return (next_minute - time).total_seconds()
+    def _next_minute(self, time: None | datetime = None) -> datetime:
+        time = time or self._now()
+
+        return (time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+
+    async def _sleep_until(self, target: datetime) -> None:
+        # Timers may fire a fraction of a millisecond before the wall clock reaches the
+        # target, so keep sleeping until it does.
+        while (remaining := (target - self._now()).total_seconds()) > 0:
+            await asyncio.sleep(remaining)

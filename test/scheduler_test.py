@@ -1,8 +1,8 @@
+import asyncio
 import pytest
 import random
 
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
 
 from oban import job, worker
 from oban._scheduler import (
@@ -223,6 +223,14 @@ class TestScheduledRegistration:
         assert len(scheduled_entries()) == 1
 
 
+TARGET = datetime(2026, 8, 26, 22, 30, tzinfo=timezone.utc)
+
+
+class FakeLeader:
+    def __init__(self, is_leader=True):
+        self.is_leader = is_leader
+
+
 class TestSchedulerEvaluate:
     @pytest.fixture(autouse=True)
     def clear_scheduled(self):
@@ -260,7 +268,7 @@ class TestSchedulerEvaluate:
             async def process(self, job):
                 pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
         job = mock_query.enqueued_jobs[0]
 
@@ -276,9 +284,8 @@ class TestSchedulerEvaluate:
             async def process(self, job):
                 pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
-        # We shouldn't be running tests at midnight on New Years Eve...
         assert len(mock_query.enqueued_jobs) == 0
 
     async def test_enqueues_multiple_matching_jobs(self, scheduler, mock_query):
@@ -291,7 +298,7 @@ class TestSchedulerEvaluate:
         def second_job():
             pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
         assert len(mock_query.enqueued_jobs) == 2
 
@@ -301,19 +308,16 @@ class TestSchedulerEvaluate:
             async def process(self, job):
                 pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
         job = mock_query.enqueued_jobs[0]
 
         assert job.meta["cron"] is True
+        assert job.meta["cron_at"] == "2026-08-26T22:30:00+00:00"
         assert job.meta["cron_expr"] == "* * * * *"
         assert "cron_name" in job.meta
 
     async def test_uses_configured_timezone(self, mock_query, mock_notifier):
-        chi_tz = ZoneInfo("America/Chicago")
-        chi_now = datetime.now(chi_tz)
-        utc_now = datetime.now(timezone.utc)
-
         scheduler = Scheduler(
             leader=None,
             notifier=mock_notifier,
@@ -321,27 +325,23 @@ class TestSchedulerEvaluate:
             timezone="America/Chicago",
         )
 
-        @worker(queue="chi", cron=f"* {chi_now.hour} * * *")
+        # 22:30 UTC is 17:30 in Chicago
+        @worker(queue="chi", cron="30 17 * * *")
         class ChiWorker:
             async def process(self, job):
                 pass
 
-        @worker(queue="utc", cron=f"* {utc_now.hour} * * *")
+        @worker(queue="utc", cron="30 22 * * *")
         class UtcWorker:
             async def process(self, job):
                 pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
         assert len(mock_query.enqueued_jobs) == 1
         assert mock_query.enqueued_jobs[0].queue == "chi"
 
     async def test_per_job_timezone_override(self, mock_query, mock_notifier):
-        chi_tz = ZoneInfo("America/Chicago")
-        los_tz = ZoneInfo("America/Los_Angeles")
-        chi_now = datetime.now(chi_tz)
-        los_now = datetime.now(los_tz)
-
         scheduler = Scheduler(
             leader=None,
             notifier=mock_notifier,
@@ -349,48 +349,129 @@ class TestSchedulerEvaluate:
             timezone="America/Los_Angeles",
         )
 
-        @worker(cron={"expr": f"* {chi_now.hour} * * *", "timezone": "America/Chicago"})
+        # 22:30 UTC is 17:30 in Chicago and 15:30 in Los Angeles
+        @worker(cron={"expr": "30 17 * * *", "timezone": "America/Chicago"})
         class ChiWorker:
             async def process(self, job):
                 pass
 
-        @worker(cron=f"* {los_now.hour} * * *")
+        @worker(cron="30 15 * * *")
         class LosWorker:
             async def process(self, job):
                 pass
 
-        await scheduler._evaluate()
+        await scheduler._evaluate(TARGET)
 
         assert len(mock_query.enqueued_jobs) == 2
 
 
-class TestSchedulerTimeToNextMinute:
+class TestSchedulerNextMinute:
     @pytest.fixture
     def cron(self):
         return Scheduler(leader=None, notifier=None, query=None)
 
-    def time_to_next_minute(self, cron, *, hour=12, minute=34, second=0, microsecond=0):
-        time = datetime.now(timezone.utc).replace(
-            hour=hour, minute=minute, second=second, microsecond=microsecond
-        )
+    def test_truncates_to_the_following_minute(self, cron):
+        time = TARGET.replace(second=15, microsecond=250000)
 
-        return cron._time_to_next_minute(time)
+        assert cron._next_minute(time) == TARGET + timedelta(minutes=1)
 
-    def test_seconds_until_next_minute(self, cron):
-        assert self.time_to_next_minute(cron, second=0) == 60.0
-        assert self.time_to_next_minute(cron, second=1) == 59.0
-        assert self.time_to_next_minute(cron, second=30) == 30.0
-        assert self.time_to_next_minute(cron, second=59) == 1.0
-
-    def test_at_end_of_hour(self, cron):
-        assert self.time_to_next_minute(cron, minute=59, second=45) == 15.0
+    def test_on_the_boundary(self, cron):
+        assert cron._next_minute(TARGET) == TARGET + timedelta(minutes=1)
 
     def test_at_end_of_day(self, cron):
-        assert self.time_to_next_minute(cron, hour=23, minute=59, second=30) == 30.0
+        time = TARGET.replace(hour=23, minute=59, second=30)
 
-    @pytest.mark.parametrize("second", [0, 15, 30, 45, 59])
-    @pytest.mark.parametrize("micro", [0, 500000, 999999])
-    def test_always_returns_positive_value_in_range(self, cron, second, micro):
-        result = self.time_to_next_minute(cron, second=second, microsecond=micro)
+        assert cron._next_minute(time) == datetime(2026, 8, 27, tzinfo=timezone.utc)
 
-        assert 0 < result <= 60.0
+
+class TestSchedulerSleepUntil:
+    async def test_sleeping_until_the_clock_reaches_the_target(self):
+        cron = Scheduler(leader=None, notifier=None, query=None)
+        target = cron._now() + timedelta(milliseconds=20)
+
+        await cron._sleep_until(target)
+
+        assert cron._now() >= target
+
+    async def test_resleeping_after_an_early_wake(self):
+        cron = Scheduler(leader=None, notifier=None, query=None)
+        clock = iter(
+            [
+                TARGET - timedelta(milliseconds=1),
+                TARGET - timedelta(microseconds=200),
+                TARGET + timedelta(microseconds=100),
+            ]
+        )
+
+        cron._now = lambda: next(clock)
+
+        await cron._sleep_until(TARGET)
+
+        assert next(clock, None) is None
+
+
+class TestSchedulerLoop:
+    async def run_ticks(self, leader, wakes, on_wake=None, on_evaluate=None):
+        """Drive the loop once per wake, waking with the clock at target plus the offset."""
+        cron = Scheduler(leader=leader, notifier=None, query=None)
+        clock = [TARGET - timedelta(seconds=30)]
+        wakes = iter(wakes)
+        evaluated = []
+
+        async def sleep_until(target):
+            try:
+                clock[0] = target + timedelta(seconds=next(wakes))
+            except StopIteration:
+                raise asyncio.CancelledError
+
+            if on_wake:
+                on_wake(target)
+
+        async def evaluate(target):
+            evaluated.append(target)
+
+            if on_evaluate:
+                clock[0] = on_evaluate(target)
+
+        cron._now = lambda: clock[0]
+        cron._sleep_until = sleep_until
+        cron._evaluate = evaluate
+
+        await cron._loop()
+
+        return evaluated
+
+    async def test_evaluating_each_target_minute(self):
+        evaluated = await self.run_ticks(FakeLeader(), wakes=[0.001, 0.002, 0.001])
+
+        assert evaluated == [TARGET + timedelta(minutes=offset) for offset in range(3)]
+
+    async def test_skipping_evaluation_without_leadership(self):
+        evaluated = await self.run_ticks(FakeLeader(is_leader=False), wakes=[0.001])
+
+        assert evaluated == []
+
+    async def test_evaluating_only_the_current_target_after_gaining_leadership(self):
+        leader = FakeLeader(is_leader=False)
+
+        def gain_leadership(target):
+            leader.is_leader = target > TARGET
+
+        evaluated = await self.run_ticks(
+            leader, wakes=[0.001, 0.001], on_wake=gain_leadership
+        )
+
+        assert evaluated == [TARGET + timedelta(minutes=1)]
+
+    async def test_skipping_evaluated_targets_after_a_backward_clock_step(self):
+        def step_back(target):
+            if target == TARGET:
+                return target - timedelta(seconds=90)
+
+            return target
+
+        evaluated = await self.run_ticks(
+            FakeLeader(), wakes=[0.001, 0.001, 0.001, 0.001], on_evaluate=step_back
+        )
+
+        assert evaluated == [TARGET, TARGET + timedelta(minutes=1)]
