@@ -43,6 +43,7 @@ class Leader(Looper):
         self._query = query
 
         self._is_leader = False
+        self._election_lock = asyncio.Lock()
         self._listen_token = None
         self._loop_task = None
         self._started = asyncio.Event()
@@ -109,14 +110,23 @@ class Leader(Looper):
             await asyncio.sleep(sleep_duration)
 
     async def _election(self) -> None:
-        meta = {"leader": self._is_leader}
+        async with self._election_lock:
+            meta = {"leader": self._is_leader}
 
-        with telemetry.span("oban.leader.election", meta) as context:
-            self._is_leader = await self._query.attempt_leadership(
-                self._name, self._node, int(self._interval)
-            )
+            with telemetry.span("oban.leader.election", meta) as context:
+                try:
+                    self._is_leader = await self._query.attempt_leadership(
+                        self._name, self._node, int(self._interval)
+                    )
+                except Exception:
+                    # Without a result there's no way to know whether the lease is still held,
+                    # so give it up. A held lease is reclaimed by the next election because
+                    # the query renews the node's own row.
+                    self._is_leader = False
 
-            context.add({"leader": self._is_leader})
+                    raise
+                finally:
+                    context.add({"leader": self._is_leader})
 
     async def _on_notification(self, _channel: str, _payload: dict) -> None:
         await self._election()

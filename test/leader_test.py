@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from oban._leader import Leader
@@ -29,6 +31,57 @@ class TestLeaderValidation:
 
         with pytest.raises(ValueError, match="interval must be positive"):
             Leader._validate(interval=-1.0)
+
+
+class FakeQuery:
+    def __init__(self):
+        self.failing = False
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def attempt_leadership(self, name, node, ttl):
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+
+        try:
+            await asyncio.sleep(0.01)
+
+            if self.failing:
+                raise RuntimeError("connection lost")
+
+            return True
+        finally:
+            self.in_flight -= 1
+
+
+class TestElection:
+    @pytest.fixture
+    def leader(self):
+        return Leader(node="web.1", notifier=None, query=FakeQuery())
+
+    async def test_concurrent_elections_run_serially(self, leader):
+        await asyncio.gather(leader._election(), leader._election())
+
+        assert leader.is_leader
+        assert leader._query.max_in_flight == 1
+
+    async def test_conceding_leadership_when_election_fails(self, leader):
+        await leader._election()
+
+        assert leader.is_leader
+
+        leader._query.failing = True
+
+        with pytest.raises(RuntimeError):
+            await leader._election()
+
+        assert not leader.is_leader
+
+        leader._query.failing = False
+
+        await leader._election()
+
+        assert leader.is_leader
 
 
 class TestLeadership:
