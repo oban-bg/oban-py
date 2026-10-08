@@ -254,7 +254,9 @@ class Producer(Looper):
         )
 
     async def _loop(self) -> None:
-        while True:
+        task = asyncio.current_task()
+
+        while task and not task.cancelling():
             try:
                 await asyncio.wait_for(self._notified.wait(), timeout=1.0)
             except asyncio.TimeoutError:

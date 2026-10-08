@@ -133,6 +133,26 @@ class TestProducerAcks:
 
 
 class TestProducerCancellation:
+    async def test_loop_exits_when_cancellation_surfaces_as_another_error(self):
+        producer = Producer(name="Oban", node="worker", notifier=None, query=None)
+
+        async def produce():
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                raise RuntimeError("connection closed")
+
+        producer._produce = produce
+        producer.notify()
+
+        task = asyncio.create_task(producer._loop())
+        await asyncio.sleep(0.01)
+        task.cancel()
+
+        await asyncio.wait([task], timeout=0.1)
+
+        assert task.done()
+
     async def test_delegates_cancellation_to_dispatcher(self):
         class TestDispatcher:
             def __init__(self):
