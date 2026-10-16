@@ -390,7 +390,7 @@ class Scheduler(Looper):
 
         cron_name = cron_hash(entry.expression.input, work_name, opts)
 
-        job = entry.worker_cls.new()  # type: ignore[attr-defined]
+        job = entry.worker_cls.new()  # ty: ignore[unresolved-attribute]
 
         job.meta = {
             "cron": True,

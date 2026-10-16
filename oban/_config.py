@@ -126,7 +126,7 @@ class Config:
         return tml_conf.merge(env_conf).merge(cli_conf)
 
     def merge(self, other: Config) -> Config:
-        def merge_dicts(this, that) -> dict | None:
+        def merge_dicts(this, that):
             if that is None or this is None:
                 return this
 

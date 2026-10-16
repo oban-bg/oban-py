@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import uuid4
 
 import orjson
-from psycopg import AsyncConnection, InterfaceError, OperationalError
+from psycopg import AsyncConnection, InterfaceError, OperationalError, sql
 
 from ._backoff import jittery_exponential
 
@@ -283,7 +283,9 @@ class PostgresNotifier:
 
         for channel in list(self._pending_listen):
             full_channel = self._to_full_channel(channel)
-            await self._conn.execute(f'LISTEN "{full_channel}"')
+            await self._conn.execute(
+                sql.SQL("LISTEN {}").format(sql.Identifier(full_channel))
+            )
 
             self._pending_listen.discard(channel)
 
@@ -293,7 +295,9 @@ class PostgresNotifier:
 
         for channel in list(self._pending_unlisten):
             full_channel = self._to_full_channel(channel)
-            await self._conn.execute(f'UNLISTEN "{full_channel}"')
+            await self._conn.execute(
+                sql.SQL("UNLISTEN {}").format(sql.Identifier(full_channel))
+            )
 
             self._pending_unlisten.discard(channel)
 

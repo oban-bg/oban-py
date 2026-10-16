@@ -333,7 +333,7 @@ async def drain_queue(
                 if executor.action is not None:
                     await oban._query.ack_jobs([executor.action])
 
-                summary[executor.status] += 1
+                    summary[executor.action.state] += 1
 
         if not with_recursion:
             break

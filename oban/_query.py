@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import cache
 from importlib.resources import files
-from typing import Any
+from typing import Any, LiteralString, cast
 
 from psycopg import AsyncConnection, AsyncCursor
 from psycopg.rows import class_row
@@ -157,17 +158,18 @@ class Query:
         prefix: str = "public",
         package: str = "oban.queries",
         apply_prefix: bool = True,
-    ) -> str:
+    ) -> LiteralString:
         sql = files(package).joinpath(path).read_text(encoding="utf-8")
 
         if apply_prefix:
-            return re.sub(
+            sql = re.sub(
                 r"\b(oban_insert|oban_job_state|oban_jobs|oban_leaders|oban_producers|oban_state_to_bit)\b",
                 rf"{prefix}.\1",
                 sql,
             )
-        else:
-            return sql
+
+        # SQL comes from bundled files, with only the configured prefix interpolated
+        return cast(LiteralString, sql)
 
     @staticmethod
     def _cast_type(field: str, value: Any) -> Any:
@@ -211,13 +213,15 @@ class Query:
                 await cur.execute(stmt, {"states": states})
                 return await cur.fetchall()
 
-    async def count_jobs(self, states: list[str]) -> list[tuple[str, str, int]]:
+    async def count_jobs(self, states: Sequence[str]) -> list[tuple[str, str, int]]:
         async with self._pool.connection() as conn:
             stmt = self._load_file("count_jobs.sql", self._prefix)
             result = await conn.execute(stmt, {"states": states})
             return await result.fetchall()
 
-    async def estimate_counts(self, states: list[str]) -> list[tuple[str, str, int]]:
+    async def estimate_counts(
+        self, states: Sequence[str]
+    ) -> list[tuple[str, str, int]]:
         async with self._pool.connection() as conn:
             stmt = self._load_file("estimate_counts.sql", self._prefix)
             result = await conn.execute(stmt, {"states": Jsonb(states)})
@@ -244,7 +248,7 @@ class Query:
 
             return result.rowcount
 
-    async def get_job(self, job_id: int) -> Job:
+    async def get_job(self, job_id: int) -> Job | None:
         async with self._pool.connection() as conn:
             stmt = self._load_file("get_job.sql", self._prefix)
 
@@ -322,6 +326,9 @@ class Query:
 
                 result = await conn.execute(stmt, args)
                 row = await result.fetchone()
+
+                if row is None:
+                    raise ValueError(f"Job with id {job.id} not found")
 
                 job.args = row[0]
                 job.max_attempts = row[1]

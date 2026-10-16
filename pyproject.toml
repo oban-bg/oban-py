@@ -58,7 +58,7 @@ dev = [
     "pytest-benchmark>=5.2.3",
     "ruff>=0.17.1",
     "sqlalchemy[asyncio]>=2.0.0",
-    "ty>=0.0.1a27",
+    "ty>=0.0.88",
 ]
 docs = [
   "sphinx>=8.0.0",

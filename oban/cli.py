@@ -7,7 +7,7 @@ import os
 import signal
 import subprocess
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -169,7 +169,7 @@ def print_banner(version: str) -> None:
 
 
 @asynccontextmanager
-async def schema_pool(dsn: str) -> AsyncIterator[AsyncConnectionPool]:
+async def schema_pool(dsn: str | None) -> AsyncGenerator[AsyncConnectionPool]:
     if not dsn:
         raise click.UsageError("--dsn is required (or set OBAN_DSN)")
 
