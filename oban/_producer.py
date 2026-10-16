@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 from . import telemetry
+from ._backoff import jitter
 from ._executor import Executor
 from ._extensions import use_ext
 from ._looper import Looper
@@ -278,8 +279,14 @@ class Producer(Looper):
         now = asyncio.get_event_loop().time()
         elapsed = now - self._last_fetch_time
 
-        if elapsed < self._debounce_interval:
-            await asyncio.sleep(self._debounce_interval - elapsed)
+        # Jitter the interval so producers on separate nodes don't fetch in lockstep
+        interval_ms = round(self._debounce_interval * 1000)
+        interval = jitter(interval_ms, mode="both", mult=1.0) / 1000
+
+        # Debouncing coalesces completions from running jobs, so there's nothing to wait for
+        # when the queue is empty.
+        if self._running_jobs and elapsed < interval:
+            await asyncio.sleep(interval - elapsed)
 
         self._last_fetch_time = asyncio.get_event_loop().time()
 

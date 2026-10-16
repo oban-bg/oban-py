@@ -63,7 +63,8 @@ paused = true
 
 This expanded configuration demonstrates several advanced options:
 
-- The `mailers` queue has a dispatch cooldown of 50ms between job fetching
+- The `mailers` queue waits around 50ms between job fetches while jobs are running. The wait is
+  jittered between 25ms and 100ms so producers on different nodes don't fetch in lockstep
 - The `media` queue starts in a paused state, which means it won't process anything until
   it is resumed
 

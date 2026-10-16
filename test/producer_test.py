@@ -153,6 +153,20 @@ class TestProducerCancellation:
 
         assert task.done()
 
+    async def test_debounce_skipped_without_running_jobs(self):
+        producer = Producer(
+            debounce_interval=1.0, name="Oban", node="worker", notifier=None, query=None
+        )
+
+        producer._last_fetch_time = asyncio.get_running_loop().time()
+
+        await asyncio.wait_for(producer._debounce(), timeout=0.05)
+
+        producer._running_jobs[1] = (None, None)
+
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(producer._debounce(), timeout=0.05)
+
     async def test_delegates_cancellation_to_dispatcher(self):
         class TestDispatcher:
             def __init__(self):
