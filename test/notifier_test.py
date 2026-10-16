@@ -1,7 +1,9 @@
 import asyncio
 
 import pytest
+from psycopg_pool import AsyncConnectionPool
 
+from oban import Oban
 from oban._notifier import decode_payload, encode_payload
 
 
@@ -28,6 +30,25 @@ class TestEncodeDecode:
 
 
 class TestNotifier:
+    async def test_connecting_with_callable_conninfo(self, test_dsn):
+        received = asyncio.Queue()
+
+        async def fetch_dsn():
+            return test_dsn
+
+        def callback(channel, payload):
+            received.put_nowait((channel, payload))
+
+        pool = AsyncConnectionPool(conninfo=fetch_dsn, open=False)
+
+        async with pool, Oban(pool=pool) as oban:
+            await oban._notifier.listen("testing", callback)
+            await oban._notifier.notify("testing", {"message": "hello"})
+
+            result = await asyncio.wait_for(received.get(), timeout=1.0)
+
+            assert result == ("testing", {"message": "hello"})
+
     @pytest.mark.oban()
     async def test_listen_and_notify(self, oban_instance):
         received = asyncio.Queue()

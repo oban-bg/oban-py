@@ -191,9 +191,18 @@ class Query:
         self._pool = pool
         self._prefix = prefix
 
-    @property
-    def dsn(self) -> str:
-        return self._pool.conninfo
+    async def dsn(self) -> str:
+        conninfo = self._pool.conninfo
+
+        if isinstance(conninfo, str):
+            return conninfo
+
+        resolved = conninfo()
+
+        if isinstance(resolved, str):
+            return resolved
+
+        return await resolved
 
     @asynccontextmanager
     async def connection(self):
