@@ -27,8 +27,8 @@ extensions = [
     "sphinx.ext.napoleon",  # Support for Google-style docstrings
     "sphinx.ext.viewcode",  # Add links to highlighted source code
     "sphinx.ext.intersphinx",  # Link to other project's documentation
+    "sphinx_click",  # Auto-generate CLI documentation, must load before typehints
     "sphinx_autodoc_typehints",  # Better type hint rendering
-    "sphinx_click",  # Auto-generate CLI documentation
     "sphinx_design",  # Tabs, cards, and other UI components
     "myst_parser",  # Markdown support
 ]

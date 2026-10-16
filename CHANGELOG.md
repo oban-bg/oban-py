@@ -207,7 +207,7 @@ metrics = true
 
   Existing `oban-py` created schemas require the following migration:
 
-  ```sql
+  ```postgresql
   CREATE OR REPLACE FUNCTION jsonb_to_text_array(jsonb) RETURNS text[] AS $$
       SELECT COALESCE(array_agg(x), '{}') FROM jsonb_array_elements_text($1) AS x;
   $$ LANGUAGE sql IMMUTABLE;
