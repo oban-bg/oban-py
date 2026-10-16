@@ -1,7 +1,7 @@
 .PHONY: bench check ci fix format precommit test
 .PHONY: db-reset db-setup db-teardown
 .PHONY: docs docs-clean docs-publish docs-serve
-.PHONY: help release 
+.PHONY: help release release-notes
 
 API_BASE ?= https://oban.pro
 DSN_BASE ?= postgresql://postgres@localhost
@@ -24,6 +24,7 @@ help:
 	@echo "  format       - Format code with ruff"
 	@echo "  precommit    - Run pre-commit checks (alias for check)"
 	@echo "  release      - Build and publish a release (requires VERSION=x.y.z)"
+	@echo "  release-notes - Print CHANGELOG notes for a release (requires VERSION=x.y.z)"
 	@echo "  test         - Run tests with pytest"
 
 check:
@@ -53,7 +54,14 @@ endif
 	uv build
 	uv publish
 	git push origin main --tags
+	$(MAKE) --silent --no-print-directory release-notes | gh release create v$(VERSION) --verify-tag --title "v$(VERSION)" --notes-file -
 	$(MAKE) docs-publish
+
+release-notes:
+ifndef VERSION
+	$(error VERSION is required. Usage: make release-notes VERSION=x.y.z)
+endif
+	@awk -v heading="## v$(VERSION) " 'index($$0, "## v") == 1 { found = index($$0, heading) == 1; next } found' CHANGELOG.md
 
 test:
 	uv run pytest -s
