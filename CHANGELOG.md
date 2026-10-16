@@ -24,6 +24,58 @@ metrics = true
 
 [web]: https://hexdocs.pm/oban_web/standalone.html
 
+## v0.6.7 — 2026-10-16
+
+### Enhancements
+
+- [Oban] Support Python 3.15
+
+  Python 3.15 is now tested in CI and listed in the package classifiers.
+
+- [Notifier] Support callable `conninfo` for the notifier connection
+
+  `psycopg-pool` 3.3 allows a pool's `conninfo` to be a sync or async callable, e.g. to fetch
+  rotating credentials. The notifier passed the callable directly to the connection rather than
+  resolving it, which prevented it from connecting.
+
+- [Producer] Fetch immediately when a queue has no running jobs
+
+  The producer waits for a short debounce interval before fetching so that completions from
+  running jobs coalesce into fewer fetch queries. With no jobs running there's nothing to coalesce,
+  so that wait only added latency. Skipping it roughly doubles throughput for short-lived jobs,
+  without increasing fetch queries for longer-running work.
+
+  The debounce interval is now also jittered between half and double the configured value,
+  matching Oban for Elixir's `dispatch_cooldown`, so producers on multiple nodes don't fetch in
+  lockstep and compete for the same jobs.
+
+### Bug Fixes
+
+- [Deps] Require `orjson` 3.11.6 or later
+
+  Raise the minimum `orjson` version to one that patches a known vulnerability.
+
+- [Oban] Avoid discarding connections when stopping
+
+  Stopping Oban cancelled background loops, and a cancel that landed while a loop was opening a
+  transaction left the connection stuck in a transaction state. The pool then failed to reset it,
+  logged an "Explicit rollback() forbidden" error, and discarded the connection.
+
+  Loops now finish any in-flight query before exiting. Loops that don't exit within a few seconds
+  are still cancelled, so shutdown never hangs.
+
+- [Oban] Raise a clear error when updating a deleted job
+
+  `update_many_jobs` raised an opaque `TypeError` when a job was deleted between fetching and
+  updating it. It now raises a `ValueError` naming the missing job, as fetching does.
+
+- [Producer] Stop producer loop when a cancel surfaces
+
+  When a driver turned a cancellation into a different error, e.g. psycopg raising
+  `OutOfOrderTransactionNesting` during an ack, the producer logged the error and kept running.
+  Since `asyncio` delivers a cancel only once, `Oban.stop()` would hang forever waiting on the
+  producer. The loop now exits as soon as its task has a pending cancellation.
+
 ## v0.6.6 — 2026-09-03
 
 ### Bug Fixes
