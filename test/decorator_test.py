@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from oban import job, worker
@@ -139,9 +140,8 @@ class TestWorkerEnqueueWithConn:
                 return job.args
 
         async with oban_instance() as oban:
-            async with oban._connection() as conn:
-                async with conn.transaction():
-                    job = await TransactionalWorker.enqueue({"ref": 1}, conn=conn)
+            async with oban._connection() as conn, conn.transaction():
+                job = await TransactionalWorker.enqueue({"ref": 1}, conn=conn)
 
             assert (await oban.get_job(job.id)) is not None
 
@@ -153,8 +153,7 @@ class TestJobEnqueueWithConn:
             return ref
 
         async with oban_instance() as oban:
-            async with oban._connection() as conn:
-                async with conn.transaction():
-                    inserted = await transactional_task.enqueue(1, conn=conn)
+            async with oban._connection() as conn, conn.transaction():
+                inserted = await transactional_task.enqueue(1, conn=conn)
 
             assert (await oban.get_job(inserted.id)) is not None

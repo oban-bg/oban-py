@@ -27,9 +27,7 @@ Or programmatically when running embedded:
 
 ```python
 oban = Oban(
-    pool=pool,
-    queues={"default": 10},
-    pruner={"max_age": 3_600, "limit": 50_000}
+    pool=pool, queues={"default": 10}, pruner={"max_age": 3_600, "limit": 50_000}
 )
 ```
 
@@ -70,9 +68,7 @@ Or programmatically when running embedded:
 
 ```python
 oban = Oban(
-    pool=pool,
-    queues={"default": 10},
-    lifeline={"interval": 30, "rescue_after": 600}
+    pool=pool, queues={"default": 10}, lifeline={"interval": 30, "rescue_after": 600}
 )
 ```
 

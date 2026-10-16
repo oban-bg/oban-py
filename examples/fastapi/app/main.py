@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from oban import Oban
 
-from .workers import SendEmailWorker, GenerateReportWorker
+from .workers import GenerateReportWorker, SendEmailWorker
 
 
 @asynccontextmanager

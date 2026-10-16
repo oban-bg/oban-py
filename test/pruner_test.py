@@ -83,16 +83,15 @@ class TestPruner:
     async def test_pruner_deletes_expired_jobs(self, oban_instance):
         async with oban_instance() as oban:
             # Insert jobs and commit them so pruner can see them
-            async with oban._connection() as conn:
-                async with conn.transaction():
-                    await insert_job(conn, "completed", 61)
-                    await insert_job(conn, "cancelled", 61)
-                    await insert_job(conn, "cancelled", 61)
-                    await insert_job(conn, "discarded", 61)
+            async with oban._connection() as conn, conn.transaction():
+                await insert_job(conn, "completed", 61)
+                await insert_job(conn, "cancelled", 61)
+                await insert_job(conn, "cancelled", 61)
+                await insert_job(conn, "discarded", 61)
 
-                    id_1 = await insert_job(conn, "scheduled", 61)
-                    id_2 = await insert_job(conn, "completed", 59)
-                    id_3 = await insert_job(conn, "discarded", 59)
+                id_1 = await insert_job(conn, "scheduled", 61)
+                id_2 = await insert_job(conn, "completed", 59)
+                id_3 = await insert_job(conn, "discarded", 59)
 
             # Force synchronous pruning
             await oban._pruner._prune()

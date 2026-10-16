@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, TypeVar
 
@@ -119,7 +119,7 @@ class Record:
                 f"recorded value is {len(encoded)} bytes, exceeds limit of {self.limit}"
             )
 
-        setattr(self, "encoded", encoded)
+        self.encoded = encoded
 
 
 type Result[T] = Cancel | Snooze | Record | T | None
@@ -143,26 +143,26 @@ class Job:
     """
 
     __slots__ = (
-        "worker",
-        "id",
-        "state",
-        "queue",
-        "attempt",
-        "max_attempts",
-        "priority",
+        "_cancellation",
         "args",
-        "meta",
-        "errors",
-        "tags",
-        "attempted_by",
-        "inserted_at",
+        "attempt",
         "attempted_at",
+        "attempted_by",
         "cancelled_at",
         "completed_at",
         "discarded_at",
-        "scheduled_at",
+        "errors",
         "extra",
-        "_cancellation",
+        "id",
+        "inserted_at",
+        "max_attempts",
+        "meta",
+        "priority",
+        "queue",
+        "scheduled_at",
+        "state",
+        "tags",
+        "worker",
     )
 
     def __init__(
@@ -186,7 +186,7 @@ class Job:
         completed_at: datetime | None = None,
         discarded_at: datetime | None = None,
         scheduled_at: datetime | None = None,
-        schedule_in: timedelta | int | float | None = None,
+        schedule_in: timedelta | float | None = None,
         extra: dict[str, Any] | None = None,
         _validate: bool = True,
     ) -> None:
@@ -257,7 +257,7 @@ class Job:
         if schedule_in is not None:
             if isinstance(schedule_in, (int, float)):
                 schedule_in = timedelta(seconds=schedule_in)
-            scheduled_at = datetime.now(timezone.utc) + schedule_in
+            scheduled_at = datetime.now(UTC) + schedule_in
 
         self.inserted_at = inserted_at
         self.attempted_at = attempted_at
@@ -270,7 +270,7 @@ class Job:
         for key in TIMESTAMP_FIELDS:
             value = getattr(self, key)
             if value is not None and value.tzinfo is None:
-                setattr(self, key, value.replace(tzinfo=timezone.utc))
+                setattr(self, key, value.replace(tzinfo=UTC))
 
         if _validate:
             self._normalize_tags()
@@ -319,7 +319,7 @@ class Job:
             schedule_in = changes.pop("schedule_in")
             if isinstance(schedule_in, (int, float)):
                 schedule_in = timedelta(seconds=schedule_in)
-            changes["scheduled_at"] = datetime.now(timezone.utc) + schedule_in
+            changes["scheduled_at"] = datetime.now(UTC) + schedule_in
 
         for key, value in changes.items():
             setattr(self, key, value)

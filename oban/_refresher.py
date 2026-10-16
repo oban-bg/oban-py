@@ -10,8 +10,8 @@ from ._looper import Looper
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ._producer import Producer
     from ._leader import Leader
+    from ._producer import Producer
     from ._query import Query
 
 

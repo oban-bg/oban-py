@@ -1,12 +1,12 @@
 import json
 import logging
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
-from datetime import datetime, timedelta, timezone
-
 from oban import worker
-from oban.testing import process_job
 from oban.telemetry import logger
+from oban.testing import process_job
 
 
 @worker()
@@ -28,8 +28,8 @@ class TestLoggerHandler:
         logger.attach()
 
         job = SuccessWorker.new(
-            scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=2),
-            attempted_at=datetime.now(timezone.utc),
+            scheduled_at=datetime.now(UTC) - timedelta(seconds=2),
+            attempted_at=datetime.now(UTC),
         )
         await process_job(job)
 
@@ -59,8 +59,8 @@ class TestLoggerHandler:
         logger.attach()
 
         job = FailureWorker.new(
-            scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=1),
-            attempted_at=datetime.now(timezone.utc),
+            scheduled_at=datetime.now(UTC) - timedelta(seconds=1),
+            attempted_at=datetime.now(UTC),
         )
 
         with pytest.raises(ValueError):

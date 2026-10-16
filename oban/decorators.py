@@ -8,8 +8,9 @@ This module provides two decorators for making your code enqueueable:
 """
 
 import inspect
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 from ._extensions import use_ext
 from ._scheduler import register_scheduled

@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from ._executor import Executor
 from .job import Job
@@ -320,7 +319,7 @@ async def drain_queue(
 
     while True:
         if with_scheduled:
-            before = datetime.now(timezone.utc) + FAR_FUTURE
+            before = datetime.now(UTC) + FAR_FUTURE
             await oban._query.stage_jobs(limit=1000, queues=[queue], before=before)
 
         match await oban._query.fetch_jobs(
@@ -403,7 +402,7 @@ def process_job(job: Job):
         ...     result = process_job(job)
         ...     assert result == "Sent 'Hello World' to user 123"
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     job.args = json.loads(json.dumps(job.args))
     job.meta = json.loads(json.dumps(job.meta))

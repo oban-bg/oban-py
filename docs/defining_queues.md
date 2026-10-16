@@ -43,7 +43,7 @@ If you're running Oban embedded in your application rather than using the CLI, y
 queues programmatically:
 
 ```python
-oban = Oban(pool=pool, queues={"default": 10, "mailers": 20 })
+oban = Oban(pool=pool, queues={"default": 10, "mailers": 20})
 ```
 
 ## Advanced Queue Options

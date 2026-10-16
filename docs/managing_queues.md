@@ -152,7 +152,9 @@ if info:
 
 # Check all queues on this node
 for info in oban.check_all_queues():
-    print(f"{info.queue}: {len(info.running)}/{info.limit} running, paused={info.paused}")
+    print(
+        f"{info.queue}: {len(info.running)}/{info.limit} running, paused={info.paused}"
+    )
 ```
 
 The returned `QueueInfo` includes:

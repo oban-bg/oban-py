@@ -6,7 +6,8 @@ import gzip
 import inspect
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import uuid4
 
 import orjson
@@ -255,7 +256,7 @@ class PostgresNotifier:
 
         try:
             await self._connect()
-        except (OSError, OperationalError, InterfaceError, asyncio.TimeoutError):
+        except (TimeoutError, OSError, OperationalError, InterfaceError):
             asyncio.create_task(self._reconnect())
 
     async def _loop(self) -> None:

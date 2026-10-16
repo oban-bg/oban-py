@@ -8,11 +8,11 @@ similar to Elixir's `:telemetry` library, but tailored to Oban's needs.
 import logging
 import time
 import traceback
-
 from collections import defaultdict
+from collections.abc import Callable
 from contextlib import contextmanager
 from threading import RLock
-from typing import Any, Callable, List
+from typing import Any
 
 Handler = Callable[[str, dict[str, Any]], None]
 Metadata = dict[str, Any]
@@ -45,7 +45,7 @@ class Collector:
         return self._metadata.copy()
 
 
-def attach(id: str, events: List[str], handler: Handler) -> None:
+def attach(id: str, events: list[str], handler: Handler) -> None:
     """Attach a handler function to one or more telemetry events.
 
     Args:

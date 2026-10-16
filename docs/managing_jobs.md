@@ -142,9 +142,9 @@ returns a dict of changes:
 await oban.update_job(job, lambda job: {"tags": job.tags + ["processed"]})
 
 # Merge into existing meta
-await oban.update_job(job, lambda job: {
-    "meta": {**job.meta, "reviewed_at": datetime.now().isoformat()}
-})
+await oban.update_job(
+    job, lambda job: {"meta": {**job.meta, "reviewed_at": datetime.now().isoformat()}}
+)
 ```
 
 To update multiple jobs at once:
@@ -157,8 +157,7 @@ With a callable, each job is updated individually based on its current state:
 
 ```python
 jobs = await oban.update_many_jobs(
-    job_ids,
-    lambda job: {"meta": {**job.meta, "batch_id": batch_id}}
+    job_ids, lambda job: {"meta": {**job.meta, "batch_id": batch_id}}
 )
 ```
 

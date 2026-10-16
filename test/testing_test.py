@@ -1,7 +1,7 @@
 import asyncio
-import pytest
+from datetime import UTC, datetime, timedelta
 
-from datetime import datetime, timedelta, timezone
+import pytest
 
 from oban import Cancel, Snooze, job, worker
 from oban.testing import (
@@ -15,7 +15,7 @@ from oban.testing import (
 
 
 def future(**kwargs):
-    return datetime.now(timezone.utc) + timedelta(**kwargs)
+    return datetime.now(UTC) + timedelta(**kwargs)
 
 
 @worker()

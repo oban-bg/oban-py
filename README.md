@@ -163,6 +163,7 @@ and start processing with the CLI (or embedded mode).
    ```python
    from oban import worker, Snooze, Cancel
 
+
    @worker(queue="exports", max_attempts=5)
    class ExportWorker:
        async def process(self, job):

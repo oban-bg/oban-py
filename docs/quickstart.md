@@ -15,6 +15,7 @@ For simple tasks, use the `@job` decorator to turn any function into a worker:
 ```python
 from oban import job
 
+
 @job(queue="default")
 def send_email(email, subject, body):
     print("Sending an email...")
@@ -27,6 +28,7 @@ want to customize retry backoff logic:
 
 ```python
 from oban import worker
+
 
 @worker(queue="exports", priority=2)
 class ExportWorker:
@@ -45,10 +47,12 @@ Define workers that run on a schedule using the `cron` parameter:
 ```python
 from oban import worker
 
+
 @worker(queue="maintenance", cron="@daily")
 class DailyCleanup:
     async def process(self, job):
         print("Running daily cleanup...")
+
 
 @worker(queue="reports", cron="0 9 * * MON-FRI")
 class BusinessHoursReport:
@@ -94,10 +98,7 @@ or any task that shouldn't run immediately:
 from datetime import timedelta
 
 await send_email.enqueue(
-    "user@example.com",
-    "Reminder",
-    "Don't forget!",
-    schedule_in=timedelta(hours=6)
+    "user@example.com", "Reminder", "Don't forget!", schedule_in=timedelta(hours=6)
 )
 ```
 
@@ -141,6 +142,7 @@ from oban import Oban
 pool = await Oban.create_pool()
 oban = Oban(pool=pool)  # No queues, client-only
 
+
 @app.route("/send-email")
 async def send_email_route():
     await send_email.enqueue("user@example.com", "Hi", "Hello!")
@@ -163,6 +165,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from oban import Oban
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     pool = await Oban.create_pool()
@@ -170,6 +173,7 @@ async def lifespan(app: FastAPI):
 
     async with oban:
         yield
+
 
 app = FastAPI(lifespan=lifespan)
 ```

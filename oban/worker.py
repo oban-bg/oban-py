@@ -101,8 +101,6 @@ class WorkerResolutionError(Exception):
     - Resolved attribute is not a class
     """
 
-    pass
-
 
 _registry: dict[str, type] = {}
 

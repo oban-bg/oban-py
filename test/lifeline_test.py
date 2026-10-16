@@ -96,9 +96,8 @@ class TestLifeline:
     async def test_lifeline_rescues_old_executing_jobs(self, oban_instance):
         oban = oban_instance()
 
-        async with oban._connection() as conn:
-            async with conn.transaction():
-                job_id = await insert_executing_job(conn, old_attempt=True)
+        async with oban._connection() as conn, conn.transaction():
+            job_id = await insert_executing_job(conn, old_attempt=True)
 
         await oban.start()
 
@@ -120,9 +119,8 @@ class TestLifeline:
 
         await oban.start()
 
-        async with oban._connection() as conn:
-            async with conn.transaction():
-                job_id = await insert_executing_job(conn, old_attempt=False)
+        async with oban._connection() as conn, conn.transaction():
+            job_id = await insert_executing_job(conn, old_attempt=False)
 
         await oban._lifeline._rescue()
 
@@ -141,11 +139,10 @@ class TestLifeline:
     ):
         oban = oban_instance()
 
-        async with oban._connection() as conn:
-            async with conn.transaction():
-                job_id = await insert_executing_job(
-                    conn, attempt=1, max_attempts=1, old_attempt=True
-                )
+        async with oban._connection() as conn, conn.transaction():
+            job_id = await insert_executing_job(
+                conn, attempt=1, max_attempts=1, old_attempt=True
+            )
 
         await oban.start()
 
@@ -166,10 +163,9 @@ class TestLifeline:
     async def test_lifeline_discards_stranded_available_jobs(self, oban_instance):
         oban = oban_instance()
 
-        async with oban._connection() as conn:
-            async with conn.transaction():
-                stranded = await insert_available_job(conn, attempt=20, max_attempts=20)
-                ready = await insert_available_job(conn, attempt=0, max_attempts=20)
+        async with oban._connection() as conn, conn.transaction():
+            stranded = await insert_available_job(conn, attempt=20, max_attempts=20)
+            ready = await insert_available_job(conn, attempt=0, max_attempts=20)
 
         await oban.start()
 

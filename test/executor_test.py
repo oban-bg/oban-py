@@ -1,6 +1,6 @@
-import pytest
+from datetime import UTC, datetime, timedelta
 
-from datetime import datetime, timedelta, timezone
+import pytest
 
 from oban import job, telemetry, worker
 from oban._executor import Executor
@@ -28,8 +28,8 @@ class TestExecutorTelemetry:
         telemetry.attach("test-executor", ["oban.job.start", "oban.job.stop"], handler)
 
         job = SuccessWorker.new(
-            scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=2),
-            attempted_at=datetime.now(timezone.utc),
+            scheduled_at=datetime.now(UTC) - timedelta(seconds=2),
+            attempted_at=datetime.now(UTC),
         )
 
         await Executor(job, safe=True).execute()

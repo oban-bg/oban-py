@@ -22,6 +22,7 @@ the app running, then you'll want to start oban as a fixture:
 import pytest
 from oban import Oban
 
+
 @pytest.fixture
 async def oban():
     pool = await Oban.create_pool()
@@ -48,6 +49,7 @@ within a test using the context manager:
 ```python
 import oban.testing
 
+
 async def test_with_inline_mode():
     with oban.testing.mode("inline"):
         # Job executes immediately without hitting the database
@@ -71,12 +73,14 @@ Let's test a worker that activates user accounts:
 from oban import worker
 from oban.testing import process_job
 
+
 @worker(queue="default")
 class ActivationWorker:
     async def process(self, job):
         user = await User.activate(job.args["id"])
 
         return {"activated": user.email}
+
 
 async def test_activating_a_new_user():
     user = await User.create(email="parker@example.com")
@@ -102,10 +106,12 @@ Function-based workers created with `@job` can be tested the same way:
 from oban import job
 from oban.testing import process_job
 
+
 @job(queue="default")
 async def send_notification(user_id: int, message: str):
     await NotificationService.send(user_id, message)
     return {"sent": True}
+
 
 async def test_send_notification():
     job = send_notification.new(123, "Hello World")
@@ -126,13 +132,12 @@ Use `assert_enqueued()` to verify a job was enqueued:
 ```python
 from oban.testing import assert_enqueued
 
+
 async def test_signup_enqueues_activation(app):
     await app.post("/signup", json={"email": "foo@example.com"})
 
     await assert_enqueued(
-        worker=ActivationWorker,
-        args={"email": "parker@example.com"},
-        queue="default"
+        worker=ActivationWorker, args={"email": "parker@example.com"}, queue="default"
     )
 ```
 
@@ -153,6 +158,7 @@ Use `refute_enqueued()` to assert no matching job was enqueued:
 ```python
 from oban.testing import refute_enqueued
 
+
 async def test_invalid_signup_skips_activation(app):
     response = await app.post("/signup", json={"email": "invalid"})
 
@@ -166,6 +172,7 @@ For complex assertions on multiple jobs, use `all_enqueued()`:
 
 ```python
 from oban.testing import all_enqueued
+
 
 async def test_notifies_all_owners():
     await Account.notify_owners(account_with_3_owners)
@@ -200,6 +207,7 @@ process all pending jobs in a queue:
 ```python
 from oban.testing import drain_queue
 
+
 async def test_email_delivery():
     await Business.schedule_meeting({"email": "monty@brewster.com"})
 
@@ -231,6 +239,7 @@ Use `reset_oban()` to clean up job data between tests:
 ```python
 import pytest
 from oban.testing import reset_oban
+
 
 @pytest.fixture(autouse=True)
 async def _reset_oban():

@@ -5,7 +5,7 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -18,10 +18,10 @@ from .worker import worker_name
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from .job import Job
     from ._leader import Leader
     from ._notifier import Notifier
     from ._query import Query
+    from .job import Job
 
 DOW_ALIASES = {
     "SUN": "0",
@@ -48,11 +48,11 @@ MON_ALIASES = {
     "DEC": "12",
 }
 
-MIN_SET = frozenset(range(0, 60))
-HRS_SET = frozenset(range(0, 24))
+MIN_SET = frozenset(range(60))
+HRS_SET = frozenset(range(24))
 DAY_SET = frozenset(range(1, 32))
 MON_SET = frozenset(range(1, 13))
-DOW_SET = frozenset(range(0, 8))  # 0-7, both 0 and 7 mean Sunday
+DOW_SET = frozenset(range(8))  # 0-7, both 0 and 7 mean Sunday
 
 NICKNAMES = {
     "@annually": "0 0 1 1 *",
@@ -275,7 +275,7 @@ class Expression:
 
     def is_now(self, time: None | datetime = None) -> bool:
         """Check whether a cron expression matches the current date and time."""
-        time = time or datetime.now(timezone.utc)
+        time = time or datetime.now(UTC)
 
         return (
             time.isoweekday() % 7 in self.weekdays
@@ -402,7 +402,7 @@ class Scheduler(Looper):
         return job
 
     def _now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def _next_minute(self, time: None | datetime = None) -> datetime:
         time = time or self._now()

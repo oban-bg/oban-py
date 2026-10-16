@@ -1,14 +1,15 @@
 import asyncio
 import os
 import socket
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from .helpers import with_backoff
 from oban import Cancel, Record, Snooze, worker
 from oban._recorded import decode_recorded
+
+from .helpers import with_backoff
 
 
 async def assert_state(oban, job_id, expected_state):
@@ -57,11 +58,10 @@ class TestEnqueue:
 
     async def test_enqueue_with_conn_commits_with_transaction(self, oban_instance):
         async with oban_instance() as oban:
-            async with oban._connection() as conn:
-                async with conn.transaction():
-                    job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
+            async with oban._connection() as conn, conn.transaction():
+                job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
 
-                    assert job.id is not None
+                assert job.id is not None
 
             assert (await oban.get_job(job.id)) is not None
 
@@ -70,12 +70,11 @@ class TestEnqueue:
             job_id = None
 
             try:
-                async with oban._connection() as conn:
-                    async with conn.transaction():
-                        job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
-                        job_id = job.id
+                async with oban._connection() as conn, conn.transaction():
+                    job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
+                    job_id = job.id
 
-                        raise RuntimeError("Force rollback")
+                    raise RuntimeError("Force rollback")
             except RuntimeError:
                 pass
 
@@ -101,13 +100,12 @@ class TestEnqueueMany:
 
     async def test_enqueue_many_with_conn_commits_with_transaction(self, oban_instance):
         async with oban_instance() as oban:
-            async with oban._connection() as conn:
-                async with conn.transaction():
-                    jobs = await oban.enqueue_many(
-                        Worker.new({"ref": 1}),
-                        Worker.new({"ref": 2}),
-                        conn=conn,
-                    )
+            async with oban._connection() as conn, conn.transaction():
+                jobs = await oban.enqueue_many(
+                    Worker.new({"ref": 1}),
+                    Worker.new({"ref": 2}),
+                    conn=conn,
+                )
 
             for job in jobs:
                 assert (await oban.get_job(job.id)) is not None
@@ -120,9 +118,8 @@ class TestEnqueueWithSQLAlchemy:
         factory = async_sessionmaker(engine, class_=AsyncSession)
 
         async with oban_instance() as oban:
-            async with factory() as session:
-                async with session.begin():
-                    job = await oban.enqueue(Worker.new({"ref": 1}), conn=session)
+            async with factory() as session, session.begin():
+                job = await oban.enqueue(Worker.new({"ref": 1}), conn=session)
 
             assert (await oban.get_job(job.id)) is not None
 
@@ -133,9 +130,8 @@ class TestEnqueueWithSQLAlchemy:
         engine = create_async_engine(sa_dsn)
 
         async with oban_instance() as oban:
-            async with engine.connect() as conn:
-                async with conn.begin():
-                    job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
+            async with engine.connect() as conn, conn.begin():
+                job = await oban.enqueue(Worker.new({"ref": 1}), conn=conn)
 
             assert (await oban.get_job(job.id)) is not None
 
@@ -177,7 +173,7 @@ class TestIntegration:
         await oban.start()
 
         try:
-            job_1, job_2, job_3, job_4 = await oban.enqueue_many(
+            _, job_2, _, job_4 = await oban.enqueue_many(
                 Worker.new({"act": "sl", "ref": 1, "sleep": 0.05}, queue="alpha"),
                 Worker.new({"act": "sl", "ref": 2, "sleep": 0.05}, queue="alpha"),
                 Worker.new({"act": "sl", "ref": 3, "sleep": 0.05}, queue="gamma"),
@@ -195,7 +191,7 @@ class TestIntegration:
     @pytest.mark.oban(queues={"default": 2})
     async def test_executing_scheduled_jobs(self, oban_instance):
         async with oban_instance() as oban:
-            utc_now = datetime.now(timezone.utc)
+            utc_now = datetime.now(UTC)
 
             past_time = utc_now - timedelta(seconds=30)
             next_time = utc_now + timedelta(seconds=30)
@@ -239,7 +235,7 @@ class TestIntegration:
 
             job = await oban.get_job(job.id)
 
-            assert job.scheduled_at > datetime.now(timezone.utc)
+            assert job.scheduled_at > datetime.now(UTC)
             assert job.meta["snoozed"] == 1
             assert job.meta["keep"]
 
@@ -262,7 +258,7 @@ class TestIntegration:
     async def test_errored_jobs_are_retryable_with_backoff(self, oban_instance):
         async with oban_instance() as oban:
             job = await Worker.enqueue({"act": "er", "ref": 1})
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             await with_backoff(lambda: assert_state(oban, job.id, "retryable"))
 
@@ -722,7 +718,7 @@ class TestCancelAllJobs:
             job_1 = await Worker.enqueue()
             job_2 = await Worker.enqueue()
 
-            await oban.cancel_many_jobs([job_1.id, job_2]) == 2
+            assert await oban.cancel_many_jobs([job_1.id, job_2.id]) == 2
 
             await assert_state(oban, job_1.id, "cancelled")
             await assert_state(oban, job_2.id, "cancelled")

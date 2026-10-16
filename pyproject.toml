@@ -56,7 +56,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "pytest-benchmark>=5.2.3",
-    "ruff>=0.9.9",
+    "ruff>=0.17.1",
     "sqlalchemy[asyncio]>=2.0.0",
     "ty>=0.0.1a27",
 ]
@@ -74,9 +74,11 @@ package = true
 
 [tool.ruff.lint]
 extend-select = ["S"]
+ignore = ["BLE001"]
 
 [tool.ruff.lint.per-file-ignores]
-"test/**" = ["S101", "S311", "S608"]
+"oban/decorators.py" = ["B010"]
+"test/**" = ["RUF012", "S101", "S311", "S608"]
 "examples/**" = ["S101"]
 
 [tool.setuptools.packages.find]

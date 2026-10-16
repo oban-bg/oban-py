@@ -1,9 +1,9 @@
+import psycopg
 import pytest
 import pytest_asyncio
-import psycopg
 
 from oban._config import Config
-from oban.schema import install_sql, install, uninstall_sql, uninstall
+from oban.schema import install, install_sql, uninstall, uninstall_sql
 
 
 @pytest.fixture

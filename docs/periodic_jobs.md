@@ -14,25 +14,30 @@ Periodic jobs are defined using the `cron` parameter in the `@worker` or `@job` 
 ```python
 from oban import worker
 
+
 @worker(queue="maintenance", cron="* * * * *")
 class MinuteWorker:
     async def process(self, job):
         print("Running every minute")
+
 
 @worker(queue="reports", cron="0 * * * *")
 class HourlyWorker:
     async def process(self, job):
         print("Running at the first minute of every hour")
 
+
 @worker(queue="cleanup", cron="0 0 * * *")
 class DailyWorker:
     async def process(self, job):
         print("Running at midnight every day")
 
+
 @worker(queue="scheduled", cron="0 12 * * MON")
 class MondayWorker:
     async def process(self, job):
         print("Running at noon every Monday")
+
 
 @worker(queue="simple", cron="@daily")
 class AnotherDailyWorker:

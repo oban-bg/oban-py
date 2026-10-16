@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List
+from typing import Any
 
 import orjson
 
@@ -110,7 +110,7 @@ def attach(
     *,
     level: int = logging.INFO,
     logger: logging.Logger | None = None,
-    events: List[str] | None = None,
+    events: list[str] | None = None,
 ) -> None:
     """Attach a logger handler to telemetry events.
 

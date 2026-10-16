@@ -1,8 +1,8 @@
 import asyncio
-import pytest
 import random
+from datetime import UTC, datetime, timedelta
 
-from datetime import datetime, timedelta, timezone
+import pytest
 
 from oban import job, worker
 from oban._scheduler import (
@@ -223,7 +223,7 @@ class TestScheduledRegistration:
         assert len(scheduled_entries()) == 1
 
 
-TARGET = datetime(2026, 8, 26, 22, 30, tzinfo=timezone.utc)
+TARGET = datetime(2026, 8, 26, 22, 30, tzinfo=UTC)
 
 
 class FakeLeader:
@@ -381,7 +381,7 @@ class TestSchedulerNextMinute:
     def test_at_end_of_day(self, cron):
         time = TARGET.replace(hour=23, minute=59, second=30)
 
-        assert cron._next_minute(time) == datetime(2026, 8, 27, tzinfo=timezone.utc)
+        assert cron._next_minute(time) == datetime(2026, 8, 27, tzinfo=UTC)
 
 
 class TestSchedulerSleepUntil:

@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import time
 import traceback
-
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._backoff import jittery_clamped
 from ._extensions import use_ext
-from .worker import resolve_worker
 from .job import Cancel, Record, Snooze
+from .worker import resolve_worker
 
 if TYPE_CHECKING:
     from .job import Job
@@ -190,6 +189,6 @@ class Executor:
 
         return {
             "attempt": self.job.attempt,
-            "at": datetime.now(timezone.utc).isoformat(),
+            "at": datetime.now(UTC).isoformat(),
             "error": error_str,
         }

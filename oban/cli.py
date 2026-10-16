@@ -7,9 +7,10 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 import click
 import orjson
@@ -21,6 +22,8 @@ from oban._config import Config
 from oban.oban import _default_node
 from oban.schema import (
     install as install_schema,
+)
+from oban.schema import (
     uninstall as uninstall_schema,
 )
 from oban.telemetry import logger as telemetry_logger
@@ -50,8 +53,7 @@ def _file_to_module(file_path: str) -> str | None:
 
     parts = list(rel_path.parts)
 
-    if parts[-1].endswith(".py"):
-        parts[-1] = parts[-1][:-3]
+    parts[-1] = parts[-1].removesuffix(".py")
 
     if parts[-1] == "__init__":
         parts.pop()
@@ -118,7 +120,7 @@ def _import_cron_paths(paths: list[str]) -> list[str]:
             ]
             found.extend(files)
 
-    files = set(str(Path(file).resolve()) for file in found)
+    files = {str(Path(file).resolve()) for file in found}
 
     return [mod for file in files if (mod := _file_to_module(file))]
 
@@ -152,16 +154,16 @@ def _find_and_load_cron_modules(
 def print_banner(version: str) -> None:
     banner = f"""
 
-  [38;2;153;183;183m ██████╗  ██████╗    ████╗   ███╗   ██╗
-  [38;2;143;175;175m██╔═══██╗ ██╔══██╗  ██╔═██╗  ████╗  ██║
-  [38;2;133;167;167m██║   ██║ ██████╔╝ ████████╗ ██╔██╗ ██║
-  [38;2;123;159;159m██║   ██║ ██╔══██╗ ██╔═══██║ ██║╚██╗██║
-  [38;2;113;151;151m ██████╔╝ ██████╔╝ ██║   ██║ ██║ ╚████║
-  [38;2;103;143;143m ╚═════╝  ╚═════╝  ╚═╝   ╚═╝ ╚═╝  ╚═══╝
-  [0m
+  \x1b[38;2;153;183;183m ██████╗  ██████╗    ████╗   ███╗   ██╗
+  \x1b[38;2;143;175;175m██╔═══██╗ ██╔══██╗  ██╔═██╗  ████╗  ██║
+  \x1b[38;2;133;167;167m██║   ██║ ██████╔╝ ████████╗ ██╔██╗ ██║
+  \x1b[38;2;123;159;159m██║   ██║ ██╔══██╗ ██╔═══██║ ██║╚██╗██║
+  \x1b[38;2;113;151;151m ██████╔╝ ██████╔╝ ██║   ██║ ██║ ╚████║
+  \x1b[38;2;103;143;143m ╚═════╝  ╚═════╝  ╚═╝   ╚═╝ ╚═╝  ╚═══╝
+  \x1b[0m
   Job orchestration framework for Python, backed by PostgreSQL
 
-  v{version} | [38;2;100;149;237mhttps://oban.pro[0m
+  v{version} | \x1b[38;2;100;149;237mhttps://oban.pro\x1b[0m
 """
     print(banner)
 
@@ -228,7 +230,6 @@ def handle_signals() -> asyncio.Event:
 @click.version_option(package_name="oban")
 def main() -> None:
     """Oban - Job orchestration framework for Python, backed by PostgreSQL."""
-    pass
 
 
 @main.command()

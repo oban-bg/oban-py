@@ -1,11 +1,11 @@
 import asyncio
 import hashlib
 import os
+
 import pytest
 
 from oban import Oban, job, worker
 from oban._config import Config
-
 
 TEST_DSN = os.getenv("DSN_BASE", "postgresql://postgres@localhost") + "/oban_py_test"
 

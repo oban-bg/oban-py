@@ -13,10 +13,12 @@ Function workers (`@job`) are simpler but have limitations:
 ```python
 from oban import job
 
+
 @job(queue="default")
 async def send_email(to: str, subject: str, body: str):
     # Simple and clean, but no access to job context
     await smtp.send(to, subject, body)
+
 
 await send_email.enqueue("user@example.com", "Hello", "World")
 ```
@@ -25,6 +27,7 @@ Class workers (`@worker`) provide full control:
 
 ```python
 from oban import worker
+
 
 @worker(queue="default")
 class EmailWorker:
@@ -38,6 +41,7 @@ class EmailWorker:
     def backoff(self, job):
         return 60 * job.attempt
 
+
 await EmailWorker.enqueue({"to": "user@example.com", "subject": "Hello"})
 ```
 
@@ -50,9 +54,9 @@ Configure default behavior with decorator parameters:
 
 ```python
 @worker(
-    queue="critical",        # Queue name
-    priority=0,              # 0 = highest priority
-    max_attempts=5,          # Retry up to 5 times
+    queue="critical",  # Queue name
+    priority=0,  # 0 = highest priority
+    max_attempts=5,  # Retry up to 5 times
     tags=["payment", "v2"],  # Default tags
 )
 class PaymentWorker:
@@ -65,9 +69,9 @@ Override defaults when enqueueing:
 ```python
 await PaymentWorker.enqueue(
     {"amount": 100},
-    priority=0,              # Override to highest priority
-    tags=["urgent"],         # Override default tags
-    max_attempts=3,          # Fewer retries for this job
+    priority=0,  # Override to highest priority
+    tags=["urgent"],  # Override default tags
+    max_attempts=3,  # Fewer retries for this job
     meta={"source": "api"},  # Add custom metadata
 )
 ```
@@ -85,6 +89,7 @@ attempt count:
 
 ```python
 from oban import worker, Snooze
+
 
 @worker(queue="default")
 class PollingWorker:
@@ -127,6 +132,7 @@ determine a job is no longer needed:
 ```python
 from oban import worker, Cancel
 
+
 @worker(queue="notifications")
 class NotificationWorker:
     async def process(self, job):
@@ -160,16 +166,19 @@ computations where you want to persist the output:
 ```python
 from oban import worker, Record
 
+
 @worker(queue="analysis")
 class AnalysisWorker:
     async def process(self, job):
         result = await run_expensive_analysis(job.args["dataset_id"])
 
-        return Record({
-            "score": result.score,
-            "metrics": result.metrics,
-            "computed_at": datetime.now().isoformat()
-        })
+        return Record(
+            {
+                "score": result.score,
+                "metrics": result.metrics,
+                "computed_at": datetime.now().isoformat(),
+            }
+        )
 ```
 
 Recorded values are stored in the job's `meta` field and can be retrieved later. The default size

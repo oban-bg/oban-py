@@ -9,12 +9,11 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
-from collections.abc import Iterable
-from typing import Any, Callable
+from collections.abc import Callable, Iterable
+from typing import Any, Self
 
 from psycopg_pool import AsyncConnectionPool
 
-from .job import Job
 from ._leader import Leader
 from ._lifeline import Lifeline
 from ._metrics import Metrics
@@ -25,6 +24,7 @@ from ._query import ConnectionLike, Query
 from ._refresher import Refresher
 from ._scheduler import Scheduler
 from ._stager import Stager
+from .job import Job
 
 QueueConfig = int | dict[str, Any]
 
@@ -43,17 +43,17 @@ class Oban:
         pool: Any,
         dispatcher: Any = None,
         leadership: bool | None = None,
-        lifeline: dict[str, Any] = {},
+        lifeline: dict[str, Any] | None = None,
         metrics: dict[str, Any] | bool | None = None,
         name: str | None = None,
         node: str | None = None,
         notifier: Notifier | None = None,
         prefix: str | None = None,
-        pruner: dict[str, Any] = {},
+        pruner: dict[str, Any] | None = None,
         queues: dict[str, QueueConfig] | None = None,
-        refresher: dict[str, Any] = {},
-        scheduler: dict[str, Any] = {},
-        stager: dict[str, Any] = {},
+        refresher: dict[str, Any] | None = None,
+        scheduler: dict[str, Any] | None = None,
+        stager: dict[str, Any] | None = None,
     ) -> None:
         """Initialize an Oban instance.
 
@@ -82,7 +82,12 @@ class Oban:
             scheduler: Scheduler config options: timezone (default: "UTC")
             stager: Stager config options: interval (default: 1.0), limit (default: 20_000)
         """
+        lifeline = lifeline or {}
+        pruner = pruner or {}
         queues = queues or {}
+        refresher = refresher or {}
+        scheduler = scheduler or {}
+        stager = stager or {}
 
         if leadership is None:
             leadership = bool(queues)
@@ -245,7 +250,7 @@ class Oban:
 
         return instance
 
-    async def __aenter__(self) -> Oban:
+    async def __aenter__(self) -> Self:
         return await self.start()
 
     async def __aexit__(self, _exc_type, _exc_val, _exc_tb) -> None:
@@ -268,7 +273,7 @@ class Oban:
     def _connection(self):
         return self._query.connection()
 
-    async def start(self) -> Oban:
+    async def start(self) -> Self:
         """Start the Oban instance and begin processing jobs.
 
         This starts all internal processes including the notifier, leader election,

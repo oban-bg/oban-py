@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
@@ -157,7 +157,7 @@ class Producer(Looper):
 
     async def start(self) -> None:
         async with self._init_lock:
-            self._started_at = datetime.now(timezone.utc)
+            self._started_at = datetime.now(UTC)
 
             await self._query.insert_producer(
                 uuid=self._uuid,
@@ -188,7 +188,7 @@ class Producer(Looper):
 
             if running_tasks:
                 try:
-                    now = datetime.now(timezone.utc).isoformat()
+                    now = datetime.now(UTC).isoformat()
                     await self._query.update_producer(
                         uuid=self._uuid,
                         meta={"paused": True, "shutdown_started_at": now},
@@ -259,7 +259,7 @@ class Producer(Looper):
         while task and not task.cancelling():
             try:
                 await asyncio.wait_for(self._notified.wait(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break

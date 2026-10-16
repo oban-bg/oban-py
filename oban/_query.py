@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import cache
 from importlib.resources import files
-from typing import Any, Union
+from typing import Any
 
 from psycopg import AsyncConnection, AsyncCursor
 from psycopg.rows import class_row
@@ -14,10 +14,10 @@ from psycopg_pool import AsyncConnectionPool
 
 from ._executor import AckAction
 from ._extensions import use_ext
-from .job import Job, TIMESTAMP_FIELDS
+from .job import TIMESTAMP_FIELDS, Job
 
 # Type alias for connection-like objects that can be passed to enqueue
-ConnectionLike = Union[AsyncConnection, AsyncCursor, Any]
+ConnectionLike = AsyncConnection | AsyncCursor | Any
 
 ACKABLE_FIELDS = [
     "id",
@@ -90,24 +90,23 @@ UPDATABLE_FIELDS = [
 
 
 async def _ack_jobs(query: Query, acks: list[AckAction]) -> list[int]:
-    async with query._pool.connection() as conn:
-        async with conn.transaction():
-            stmt = Query._load_file("ack_job.sql", query._prefix)
-            acked_ids = []
+    async with query._pool.connection() as conn, conn.transaction():
+        stmt = Query._load_file("ack_job.sql", query._prefix)
+        acked_ids = []
 
-            for ack in acks:
-                args = {
-                    field: Query._cast_type(field, getattr(ack, field))
-                    for field in ACKABLE_FIELDS
-                }
+        for ack in acks:
+            args = {
+                field: Query._cast_type(field, getattr(ack, field))
+                for field in ACKABLE_FIELDS
+            }
 
-                result = await conn.execute(stmt, args)
-                row = await result.fetchone()
+            result = await conn.execute(stmt, args)
+            row = await result.fetchone()
 
-                if row:
-                    acked_ids.append(row[0])
+            if row:
+                acked_ids.append(row[0])
 
-            return acked_ids
+        return acked_ids
 
 
 async def _reset(query: Query) -> None:
@@ -179,7 +178,7 @@ class Query:
         # timezone. The database uses `TIMESTAMP WITHOUT TIME ZONE` and the value is automatically
         # shifted when the zone is present.
         if field in TIMESTAMP_FIELDS and value is not None:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
+            return value.astimezone(UTC).replace(tzinfo=None)
 
         return value
 
@@ -225,27 +224,25 @@ class Query:
             return await result.fetchall()
 
     async def cancel_many_jobs(self, ids: list[int]) -> tuple[int, list[int]]:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("cancel_many_jobs.sql", self._prefix)
-                args = {"ids": ids}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("cancel_many_jobs.sql", self._prefix)
+            args = {"ids": ids}
 
-                result = await conn.execute(stmt, args)
-                rows = await result.fetchall()
+            result = await conn.execute(stmt, args)
+            rows = await result.fetchall()
 
-                executing_ids = [row[0] for row in rows if row[1] == "executing"]
+            executing_ids = [row[0] for row in rows if row[1] == "executing"]
 
-                return len(rows), executing_ids
+            return len(rows), executing_ids
 
     async def delete_many_jobs(self, ids: list[int]) -> int:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("delete_many_jobs.sql", self._prefix)
-                args = {"ids": ids}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("delete_many_jobs.sql", self._prefix)
+            args = {"ids": ids}
 
-                result = await conn.execute(stmt, args)
+            result = await conn.execute(stmt, args)
 
-                return result.rowcount
+            return result.rowcount
 
     async def get_job(self, job_id: int) -> Job:
         async with self._pool.connection() as conn:
@@ -259,15 +256,14 @@ class Query:
     async def fetch_jobs(
         self, demand: int, queue: str, node: str, uuid: str
     ) -> list[Job]:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("fetch_jobs.sql", self._prefix)
-                args = {"queue": queue, "demand": demand, "attempted_by": [node, uuid]}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("fetch_jobs.sql", self._prefix)
+            args = {"queue": queue, "demand": demand, "attempted_by": [node, uuid]}
 
-                async with conn.cursor(row_factory=class_row(Job)) as cur:
-                    await cur.execute(stmt, args)
+            async with conn.cursor(row_factory=class_row(Job)) as cur:
+                await cur.execute(stmt, args)
 
-                    return await cur.fetchall()
+                return await cur.fetchall()
 
     async def insert_jobs(
         self, jobs: list[Job], conn: ConnectionLike = None
@@ -275,92 +271,84 @@ class Query:
         return await use_ext("query.insert_jobs", _insert_jobs, self, jobs, conn)
 
     async def prune_jobs(self, max_age: int, limit: int) -> int:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("prune_jobs.sql", self._prefix)
-                args = {"max_age": max_age, "limit": limit}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("prune_jobs.sql", self._prefix)
+            args = {"max_age": max_age, "limit": limit}
 
-                result = await conn.execute(stmt, args)
+            result = await conn.execute(stmt, args)
 
-                return result.rowcount
+            return result.rowcount
 
     async def rescue_jobs(self, rescue_after: float) -> int:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("rescue_jobs.sql", self._prefix)
-                args = {"rescue_after": rescue_after}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("rescue_jobs.sql", self._prefix)
+            args = {"rescue_after": rescue_after}
 
-                result = await conn.execute(stmt, args)
+            result = await conn.execute(stmt, args)
 
-                return result.rowcount
+            return result.rowcount
 
     async def retry_many_jobs(self, ids: list[int]) -> int:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("retry_many_jobs.sql", self._prefix)
-                args = {"ids": ids}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("retry_many_jobs.sql", self._prefix)
+            args = {"ids": ids}
 
-                result = await conn.execute(stmt, args)
+            result = await conn.execute(stmt, args)
 
-                return result.rowcount
+            return result.rowcount
 
     async def stage_jobs(
         self, limit: int, queues: list[str], before: datetime | None = None
     ) -> tuple[int, list[str]]:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("stage_jobs.sql", self._prefix)
-                args = {"limit": limit, "queues": queues, "before": before}
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("stage_jobs.sql", self._prefix)
+            args = {"limit": limit, "queues": queues, "before": before}
 
-                result = await conn.execute(stmt, args)
-                rows = await result.fetchall()
-                queues = [queue for (queue,) in rows]
+            result = await conn.execute(stmt, args)
+            rows = await result.fetchall()
+            queues = [queue for (queue,) in rows]
 
-                return (len(rows), queues)
+            return (len(rows), queues)
 
     async def update_many_jobs(self, jobs: list[Job]) -> list[Job]:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                stmt = self._load_file("update_job.sql", self._prefix)
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file("update_job.sql", self._prefix)
 
-                for job in jobs:
-                    args = {"id": job.id}
+            for job in jobs:
+                args = {"id": job.id}
 
-                    for key in UPDATABLE_FIELDS:
-                        args[key] = self._cast_type(key, getattr(job, key))
+                for key in UPDATABLE_FIELDS:
+                    args[key] = self._cast_type(key, getattr(job, key))
 
-                    result = await conn.execute(stmt, args)
-                    row = await result.fetchone()
+                result = await conn.execute(stmt, args)
+                row = await result.fetchone()
 
-                    job.args = row[0]
-                    job.max_attempts = row[1]
-                    job.meta = row[2]
-                    job.priority = row[3]
-                    job.queue = row[4]
-                    job.scheduled_at = row[5]
-                    job.state = row[6]
-                    job.tags = row[7]
-                    job.worker = row[8]
+                job.args = row[0]
+                job.max_attempts = row[1]
+                job.meta = row[2]
+                job.priority = row[3]
+                job.queue = row[4]
+                job.scheduled_at = row[5]
+                job.state = row[6]
+                job.tags = row[7]
+                job.worker = row[8]
 
-                return jobs
+            return jobs
 
     # Leadership
 
     async def attempt_leadership(self, name: str, node: str, ttl: int) -> bool:
-        async with self._pool.connection() as conn:
-            async with conn.transaction():
-                cleanup_stmt = self._load_file(
-                    "cleanup_expired_leaders.sql", self._prefix
-                )
+        async with self._pool.connection() as conn, conn.transaction():
+            cleanup_stmt = self._load_file("cleanup_expired_leaders.sql", self._prefix)
 
-                await conn.execute(cleanup_stmt)
+            await conn.execute(cleanup_stmt)
 
-                elect_stmt = self._load_file("elect_leader.sql", self._prefix)
-                args = {"name": name, "node": node, "ttl": ttl}
-                result = await conn.execute(elect_stmt, args)
-                rows = await result.fetchone()
+            elect_stmt = self._load_file("elect_leader.sql", self._prefix)
+            args = {"name": name, "node": node, "ttl": ttl}
+            result = await conn.execute(elect_stmt, args)
+            rows = await result.fetchone()
 
-                return rows is not None and rows[0] == node
+            return rows is not None and rows[0] == node
 
     async def resign_leader(self, name: str, node: str) -> None:
         async with self._pool.connection() as conn:
