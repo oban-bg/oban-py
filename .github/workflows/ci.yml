@@ -22,7 +22,7 @@ jobs:
               python: '3.12'
               postgres: '14-alpine'
           - pair:
-              python: '3.14'
+              python: '3.15'
               postgres: '18-alpine'
             lint: lint
 
@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.pair.python }}
 
@@ -58,7 +58,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/uv
