@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
-from ._looper import Looper
+from ._looper import Looper, sleep_until_stopped, stop_gracefully
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class Pruner(Looper):
         self._query = query
 
         self._loop_task = None
+        self._stopping = asyncio.Event()
 
         self._validate(max_age=max_age, interval=interval, limit=limit)
 
@@ -76,22 +77,14 @@ class Pruner(Looper):
         self._loop_task = asyncio.create_task(self._loop(), name="oban-pruner")
 
     async def stop(self) -> None:
-        if not self._loop_task:
-            return
-
-        self._loop_task.cancel()
-
-        try:
-            await self._loop_task
-        except asyncio.CancelledError:
-            pass
+        await stop_gracefully(self._loop_task, self._stopping)
 
     async def _loop(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
-                await asyncio.sleep(self._interval)
+                await sleep_until_stopped(self._stopping, self._interval)
 
-                if self._leader.is_leader:
+                if self._leader.is_leader and not self._stopping.is_set():
                     await self._prune()
             except asyncio.CancelledError:
                 break

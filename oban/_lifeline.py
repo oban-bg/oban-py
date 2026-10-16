@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
-from ._looper import Looper
+from ._looper import Looper, sleep_until_stopped, stop_gracefully
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ class Lifeline(Looper):
         self._query = query
 
         self._loop_task = None
+        self._stopping = asyncio.Event()
 
         self._validate(interval=interval, rescue_after=rescue_after)
 
@@ -55,20 +56,15 @@ class Lifeline(Looper):
         self._loop_task = asyncio.create_task(self._loop(), name="oban-lifeline")
 
     async def stop(self) -> None:
-        if self._loop_task:
-            self._loop_task.cancel()
-
-            try:
-                await self._loop_task
-            except asyncio.CancelledError:
-                pass
+        await stop_gracefully(self._loop_task, self._stopping)
 
     async def _loop(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
-                await asyncio.sleep(self._interval)
+                await sleep_until_stopped(self._stopping, self._interval)
 
-                await self._rescue()
+                if not self._stopping.is_set():
+                    await self._rescue()
             except asyncio.CancelledError:
                 break
             except Exception:

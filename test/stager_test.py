@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from oban._stager import Stager
@@ -31,3 +33,24 @@ class TestStagerValidation:
 
         with pytest.raises(ValueError, match="limit must be positive"):
             Stager._validate(interval=1.0, limit=-1)
+
+
+class TestStagerStop:
+    async def test_stop_lets_in_flight_staging_finish(self):
+        finished = asyncio.Event()
+
+        class SlowQuery:
+            async def stage_jobs(self, limit, queues):
+                await asyncio.sleep(0.02)
+                finished.set()
+
+                return (0, [])
+
+        stager = Stager(query=SlowQuery(), notifier=None, producers={})
+        stager._loop_task = asyncio.create_task(stager._loop())
+
+        await asyncio.sleep(0)
+        await stager.stop()
+
+        assert finished.is_set()
+        assert stager._loop_task.done()

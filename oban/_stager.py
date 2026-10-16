@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import telemetry
 from ._extensions import use_ext
-from ._looper import Looper
+from ._looper import Looper, sleep_until_stopped, stop_gracefully
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ class Stager(Looper):
 
         self._loop_task = None
         self._listen_token = None
+        self._stopping = asyncio.Event()
 
         self._validate(interval=interval, limit=limit)
 
@@ -72,15 +73,10 @@ class Stager(Looper):
         if self._listen_token:
             await self._notifier.unlisten(self._listen_token)
 
-        if self._loop_task:
-            self._loop_task.cancel()
-            try:
-                await self._loop_task
-            except asyncio.CancelledError:
-                pass
+        await stop_gracefully(self._loop_task, self._stopping)
 
     async def _loop(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
                 await self._stage()
             except asyncio.CancelledError:
@@ -88,7 +84,7 @@ class Stager(Looper):
             except Exception as error:
                 logger.warning("Stager failed to stage jobs: %s", error, exc_info=True)
 
-            await asyncio.sleep(self._interval)
+            await sleep_until_stopped(self._stopping, self._interval)
 
     async def _on_notification(self, channel: str, payload: dict) -> None:
         queue = payload["queue"]

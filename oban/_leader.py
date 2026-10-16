@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from . import telemetry
-from ._looper import Looper
+from ._looper import Looper, sleep_until_stopped, stop_gracefully
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ class Leader(Looper):
         self._listen_token = None
         self._loop_task = None
         self._started = asyncio.Event()
+        self._stopping = asyncio.Event()
 
         self._validate(interval=interval)
 
@@ -77,13 +78,7 @@ class Leader(Looper):
         if self._listen_token:
             await self._notifier.unlisten(self._listen_token)
 
-        if self._loop_task:
-            self._loop_task.cancel()
-
-            try:
-                await self._loop_task
-            except asyncio.CancelledError:
-                pass
+        await stop_gracefully(self._loop_task, self._stopping)
 
         if self._is_leader:
             payload = {"action": "resign", "node": self._node, "name": self._name}
@@ -92,7 +87,7 @@ class Leader(Looper):
             await self._query.resign_leader(self._name, self._node)
 
     async def _loop(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
                 await self._election()
             except asyncio.CancelledError:
@@ -107,7 +102,7 @@ class Leader(Looper):
             # retain leadership), full interval otherwise
             sleep_duration = self._interval / 2 if self._is_leader else self._interval
 
-            await asyncio.sleep(sleep_duration)
+            await sleep_until_stopped(self._stopping, sleep_duration)
 
     async def _election(self) -> None:
         async with self._election_lock:

@@ -11,7 +11,7 @@ from . import telemetry
 from ._backoff import jitter
 from ._executor import Executor
 from ._extensions import use_ext
-from ._looper import Looper
+from ._looper import Looper, stop_gracefully
 from .job import Job
 
 if TYPE_CHECKING:
@@ -148,6 +148,7 @@ class Producer(Looper):
         self._pending_acks = []
         self._running_jobs = {}
         self._started_at = None
+        self._stopping = asyncio.Event()
         self._uuid = str(uuid4())
 
     def _validate(self, **opts) -> None:
@@ -181,8 +182,10 @@ class Producer(Looper):
             if not self._listen_token or not self._loop_task:
                 return
 
-            self._loop_task.cancel()
+            # Let the loop finish any in-flight fetch so every dispatched job is awaited below
+            self.notify()
 
+            await stop_gracefully(self._loop_task, self._stopping)
             await self._notifier.unlisten(self._listen_token)
 
             running_tasks = [task for (_job, task) in self._running_jobs.values()]
@@ -199,11 +202,7 @@ class Producer(Looper):
                         "Failed to update producer %s during shutdown", self._uuid
                     )
 
-            await asyncio.gather(
-                self._loop_task,
-                *running_tasks,
-                return_exceptions=True,
-            )
+            await asyncio.gather(*running_tasks, return_exceptions=True)
 
             try:
                 await self._ack_jobs()
@@ -257,12 +256,15 @@ class Producer(Looper):
     async def _loop(self) -> None:
         task = asyncio.current_task()
 
-        while task and not task.cancelling():
+        while task and not task.cancelling() and not self._stopping.is_set():
             try:
                 await asyncio.wait_for(self._notified.wait(), timeout=1.0)
             except TimeoutError:
                 continue
             except asyncio.CancelledError:
+                break
+
+            if self._stopping.is_set():
                 break
 
             self._notified.clear()
