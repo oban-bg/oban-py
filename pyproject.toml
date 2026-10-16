@@ -35,7 +35,7 @@ classifiers = [
 dependencies = [
   "click>=8.1.0",
   "erlpack>=1.0.0",
-  "orjson>=3.11.4",
+  "orjson>=3.11.6",
   "psycopg-pool>=3.2.6",
   "psycopg[binary]>=3.2.13",
   "uvloop>=0.22.0",
@@ -53,8 +53,8 @@ oban = "oban.cli:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=1.2.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
     "pytest-benchmark>=5.2.3",
     "ruff>=0.9.9",
     "sqlalchemy[asyncio]>=2.0.0",
@@ -97,6 +97,3 @@ markers = [
     "benchmark: mark test as a benchmark (deselect with '-m \"not benchmark\"')",
 ]
 addopts = "-m 'not benchmark'"
-filterwarnings = [
-    "ignore:'asyncio.AbstractEventLoopPolicy' is deprecated:DeprecationWarning",
-]

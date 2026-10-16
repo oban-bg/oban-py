@@ -8,9 +8,8 @@ from oban._config import Config
 from oban.testing import reset_oban
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    return uvloop.EventLoopPolicy()
+def pytest_asyncio_loop_factories(config, item):
+    return {"uvloop": uvloop.new_event_loop}
 
 
 @pytest.fixture(scope="session")
