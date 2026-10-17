@@ -135,6 +135,13 @@ TIMESTAMP_FIELDS = [
 ]
 
 
+def scheduled_from_now(scheduled_in: timedelta | float) -> datetime:
+    if isinstance(scheduled_in, (int, float)):
+        scheduled_in = timedelta(seconds=scheduled_in)
+
+    return datetime.now(UTC) + scheduled_in
+
+
 class Job:
     """A unit of work to be processed by a worker.
 
@@ -186,6 +193,7 @@ class Job:
         completed_at: datetime | None = None,
         discarded_at: datetime | None = None,
         scheduled_at: datetime | None = None,
+        scheduled_in: timedelta | float | None = None,
         schedule_in: timedelta | float | None = None,
         extra: dict[str, Any] | None = None,
         _validate: bool = True,
@@ -214,7 +222,8 @@ class Job:
             completed_at: When the job completed
             discarded_at: When the job was discarded
             scheduled_at: When to run the job
-            schedule_in: Alternative to scheduled_at. Timedelta or seconds from now
+            scheduled_in: Alternative to scheduled_at. Timedelta or seconds from now
+            schedule_in: Deprecated alias for scheduled_in, to be removed in 1.0
             extra: Extra data for runtime use (not persisted)
             _validate: Whether to validate and normalize (default: True)
 
@@ -225,7 +234,7 @@ class Job:
             ...     worker="myapp.workers.EmailWorker",
             ...     args={"to": "user@example.com"},
             ...     queue="mailers",
-            ...     schedule_in=60  # Run in 60 seconds
+            ...     scheduled_in=60  # Run in 60 seconds
             ... )
 
             Preferred approach using decorators:
@@ -237,7 +246,7 @@ class Job:
             ...     async def process(self, job):
             ...         pass
             >>>
-            >>> job = EmailWorker.new({"to": "user@example.com"}, schedule_in=60)
+            >>> job = EmailWorker.new({"to": "user@example.com"}, scheduled_in=60)
         """
         self.worker = worker
         self.id = id
@@ -254,10 +263,11 @@ class Job:
         self.extra = extra if extra is not None else {}
         self._cancellation: asyncio.Event | None = None
 
-        if schedule_in is not None:
-            if isinstance(schedule_in, (int, float)):
-                schedule_in = timedelta(seconds=schedule_in)
-            scheduled_at = datetime.now(UTC) + schedule_in
+        if scheduled_in is None:
+            scheduled_in = schedule_in
+
+        if scheduled_in is not None:
+            scheduled_at = scheduled_from_now(scheduled_in)
 
         self.inserted_at = inserted_at
         self.attempted_at = attempted_at
@@ -304,7 +314,7 @@ class Job:
                 - priority: Priority 0-9
                 - queue: Queue name
                 - scheduled_at: When to run the job
-                - schedule_in: Alternative to scheduled_at. Timedelta or seconds from now
+                - scheduled_in: Alternative to scheduled_at. Timedelta or seconds from now
                 - tags: List of tags for filtering/grouping
                 - worker: Fully qualified worker class path
 
@@ -314,12 +324,12 @@ class Job:
         Example:
             >>> job.update({"priority": 0, "tags": ["urgent"]})
         """
-        # Handle schedule_in -> scheduled_at conversion
+        # The deprecated schedule_in alias is accepted until 1.0
         if "schedule_in" in changes:
-            schedule_in = changes.pop("schedule_in")
-            if isinstance(schedule_in, (int, float)):
-                schedule_in = timedelta(seconds=schedule_in)
-            changes["scheduled_at"] = datetime.now(UTC) + schedule_in
+            changes.setdefault("scheduled_in", changes.pop("schedule_in"))
+
+        if "scheduled_in" in changes:
+            changes["scheduled_at"] = scheduled_from_now(changes.pop("scheduled_in"))
 
         for key, value in changes.items():
             setattr(self, key, value)

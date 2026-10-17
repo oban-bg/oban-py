@@ -17,7 +17,10 @@ from ._scheduler import register_scheduled
 from .job import Job, Result
 from .worker import Worker, register_worker, worker_name
 
-JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation"} | {"schedule_in"}
+JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation"} | {
+    "scheduled_in",
+    "schedule_in",
+}
 
 
 def worker(*, oban: str = "Oban", cron: str | dict | None = None, **overrides):
@@ -64,10 +67,10 @@ def worker(*, oban: str = "Oban", cron: str | dict | None = None, **overrides):
         >>>
         >>> # Schedule a job to run in 5 minutes using a timedelta
         >>> from datetime import timedelta
-        >>> job = EmailWorker.enqueue(..., schedule_in=timedelta(minutes=5))
+        >>> job = EmailWorker.enqueue(..., scheduled_in=timedelta(minutes=5))
         >>>
         >>> # Schedule a job to run in 60 seconds
-        >>> job = EmailWorker.enqueue(..., schedule_in=60)
+        >>> job = EmailWorker.enqueue(..., scheduled_in=60)
         >>>
         >>> # Transactional insertion with SQLAlchemy
         >>> async with session.begin():

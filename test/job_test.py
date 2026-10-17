@@ -63,29 +63,29 @@ class TestJobNormalization:
         assert job.tags == ["1", "2"]
 
 
-class TestScheduleIn:
-    def test_schedule_in_with_timedelta(self):
+class TestScheduledIn:
+    def test_scheduled_in_with_timedelta(self):
         now = datetime.now(UTC)
         top = now + timedelta(minutes=5, seconds=1)
-        job = Job(worker="Worker", schedule_in=timedelta(minutes=5))
+        job = Job(worker="Worker", scheduled_in=timedelta(minutes=5))
 
         assert now < job.scheduled_at < top
 
-    def test_schedule_in_with_seconds_as_int(self):
+    def test_scheduled_in_with_seconds_as_int(self):
         now = datetime.now(UTC)
         top = now + timedelta(seconds=61)
-        job = Job(worker="Worker", schedule_in=60)
+        job = Job(worker="Worker", scheduled_in=60)
 
         assert now < job.scheduled_at < top
 
-    def test_schedule_in_with_seconds_as_float(self):
+    def test_scheduled_in_with_seconds_as_float(self):
         now = datetime.now(UTC)
         top = now + timedelta(seconds=31)
-        job = Job(worker="Worker", schedule_in=30.5)
+        job = Job(worker="Worker", scheduled_in=30.5)
 
         assert now < job.scheduled_at < top
 
-    def test_schedule_in_overrides_scheduled_at(self):
+    def test_scheduled_in_overrides_scheduled_at(self):
         fixed_time = datetime.now(UTC) + timedelta(hours=2)
         now = datetime.now(UTC)
         top = now + timedelta(minutes=5, seconds=1)
@@ -93,9 +93,19 @@ class TestScheduleIn:
         job = Job(
             worker="Worker",
             scheduled_at=fixed_time,
-            schedule_in=timedelta(minutes=5),
+            scheduled_in=timedelta(minutes=5),
         )
 
+        assert now < job.scheduled_at < top
+
+    def test_schedule_in_alias_is_accepted(self):
+        now = datetime.now(UTC)
+        top = now + timedelta(seconds=61)
+
+        job = Job(worker="Worker", schedule_in=60)
+        assert now < job.scheduled_at < top
+
+        job = Job(worker="Worker").update({"schedule_in": 60})
         assert now < job.scheduled_at < top
 
 

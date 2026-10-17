@@ -234,6 +234,19 @@ class TestAssertEnqueued:
         await assert_enqueued(worker=Omega, args={"id": 1, "xd": 2})
         await assert_enqueued(worker=Omega, oban="Oban")
 
+    async def test_assert_enqueued_with_scheduled_in(self, oban_instance):
+        @worker()
+        class Delayed:
+            async def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue(Delayed.new(scheduled_in=3600))
+
+        await assert_enqueued(worker=Delayed, scheduled_in=3600)
+        await assert_enqueued(worker=Delayed, scheduled_in=timedelta(hours=1))
+        await refute_enqueued(worker=Delayed, scheduled_in=60)
+
     async def test_assert_enqueued_raises_on_no_match(self, oban_instance):
         @worker(queue="alpha")
         class Alpha:

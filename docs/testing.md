@@ -151,6 +151,16 @@ async def test_enqueued_args_have_email_key():
     await assert_enqueued(queue="default", args={"email": "foo@example.com"})
 ```
 
+Use `scheduled_in` to match jobs scheduled relative to now, within a second, rather than computing
+an exact `scheduled_at`:
+
+```python
+async def test_reminder_is_scheduled():
+    await Account.schedule_reminder(account)
+
+    await assert_enqueued(worker=ReminderWorker, scheduled_in=timedelta(hours=1))
+```
+
 ### Refuting Enqueued Jobs
 
 Use `refute_enqueued()` to assert no matching job was enqueued:

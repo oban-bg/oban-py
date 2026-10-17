@@ -6,16 +6,16 @@ other database changes.
 
 ## Schedule in Relative Time
 
-You can schedule jobs to run after a specific delay using the `schedule_in` parameter:
+You can schedule jobs to run after a specific delay using the `scheduled_in` parameter:
 
 ```python
 from datetime import timedelta
 
 # Using timedelta
-await MyWorker.enqueue({"id": 1}, schedule_in=timedelta(seconds=5))
+await MyWorker.enqueue({"id": 1}, scheduled_in=timedelta(seconds=5))
 
 # Or using seconds directly
-await MyWorker.enqueue({"id": 1}, schedule_in=5)
+await MyWorker.enqueue({"id": 1}, scheduled_in=5)
 ```
 
 This is useful for tasks that need to happen after a short delay, such as sending a follow-up

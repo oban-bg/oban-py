@@ -12,13 +12,16 @@ from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 
 from ._executor import Executor
-from .job import Job
+from .job import Job, scheduled_from_now
 from .oban import Oban
 from .worker import worker_name
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
 
 FAR_FUTURE = timedelta(365 * 100)
+
+# How far a job's scheduled_at may drift from the expected time when matching scheduled_in
+SCHEDULED_IN_DELTA = 1.0
 
 
 @contextmanager
@@ -98,7 +101,8 @@ async def all_enqueued(*, oban: str | Oban = "Oban", **filters) -> list[Job]:
     Args:
         oban: Oban instance name (default: "oban") or Oban instance
         **filters: Job fields to match (e.g., worker=EmailWorker, args={"to": "..."},
-                   queue="mailers", priority=5). Args supports partial matching.
+                   queue="mailers", priority=5). Args supports partial matching, and
+                   scheduled_in matches jobs scheduled that far from now, within a second.
 
     Returns:
         List of Job instances matching the filters, in descending order by ID
@@ -135,10 +139,22 @@ def _match_filters(job: Job, filters: dict) -> bool:
         if key == "args":
             if not _args_match(value, job.args):
                 return False
+        elif key == "scheduled_in":
+            if not _scheduled_in_match(value, job.scheduled_at):
+                return False
         elif getattr(job, key, None) != value:
             return False
 
     return True
+
+
+def _scheduled_in_match(expected: timedelta | float, actual: datetime | None) -> bool:
+    if actual is None:
+        return False
+
+    drift = scheduled_from_now(expected) - actual
+
+    return abs(drift.total_seconds()) <= SCHEDULED_IN_DELTA
 
 
 def _args_match(expected: dict, actual: dict) -> bool:
@@ -160,7 +176,8 @@ async def assert_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **fi
         oban: Oban instance name (default: "oban") or Oban instance
         timeout: Maximum time to wait for a matching job (in seconds). Default: 0 (no wait)
         **filters: Job fields to match (e.g., worker=EmailWorker, args={"to": "..."},
-                   queue="mailers", priority=5). Args supports partial matching.
+                   queue="mailers", priority=5). Args supports partial matching, and
+                   scheduled_in matches jobs scheduled that far from now, within a second.
 
     Raises:
         AssertionError: If no matching job is found within the timeout
@@ -185,6 +202,9 @@ async def assert_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **fi
         >>>
         >>> # Filter by queue and priority
         >>> await assert_enqueued(worker=EmailWorker, queue="mailers", priority=5)
+        >>>
+        >>> # Match a job scheduled an hour from now
+        >>> await assert_enqueued(worker=EmailWorker, scheduled_in=timedelta(hours=1))
         >>>
         >>> # Use an alternate oban instance
         >>> await assert_enqueued(worker=BatchWorker, oban="batch")
@@ -216,7 +236,8 @@ async def refute_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **fi
         oban: Oban instance name (default: "oban") or Oban instance
         timeout: Time to monitor for matching jobs (in seconds). Default: 0 (check once)
         **filters: Job fields to match (e.g., worker=EmailWorker, args={"to": "..."},
-                   queue="mailers", priority=5). Args supports partial matching.
+                   queue="mailers", priority=5). Args supports partial matching, and
+                   scheduled_in matches jobs scheduled that far from now, within a second.
 
     Raises:
         AssertionError: If any matching jobs are found

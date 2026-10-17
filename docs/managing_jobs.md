@@ -125,11 +125,11 @@ The following fields can be updated:
 | `tags`         | List of string tags                          |
 | `worker`       | Worker class name                            |
 
-For scheduling convenience, you can use `schedule_in` instead of `scheduled_at`. For example, to
+For scheduling convenience, you can use `scheduled_in` instead of `scheduled_at`. For example, to
 make a scheduled job run right away:
 
 ```python
-await oban.update_job(job, {"schedule_in": 0})
+await oban.update_job(job, {"scheduled_in": 0})
 ```
 
 ### Dynamic Updates with Callables

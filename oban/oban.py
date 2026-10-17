@@ -736,9 +736,9 @@ class Oban:
             ...     "meta": {**j.meta, "processed_at": datetime.now()}
             ... })
 
-            Use schedule_in for convenient scheduling:
+            Use scheduled_in for convenient scheduling:
 
-            >>> await oban.update_job(job, {"schedule_in": 300})  # 5 minutes from now
+            >>> await oban.update_job(job, {"scheduled_in": 300})  # 5 minutes from now
         """
         result = await self.update_many_jobs([job], changes)
 

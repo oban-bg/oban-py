@@ -664,7 +664,7 @@ class TestDeleteAllJobs:
 class TestCancelJob:
     async def test_cancelling_a_scheduled_job(self, oban_instance):
         async with oban_instance() as oban:
-            job = await Worker.enqueue({"ref": 1}, schedule_in=60)
+            job = await Worker.enqueue({"ref": 1}, scheduled_in=60)
 
             await oban.cancel_job(job.id)
 

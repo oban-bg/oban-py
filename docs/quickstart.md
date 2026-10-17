@@ -98,7 +98,7 @@ or any task that shouldn't run immediately:
 from datetime import timedelta
 
 await send_email.enqueue(
-    "user@example.com", "Reminder", "Don't forget!", schedule_in=timedelta(hours=6)
+    "user@example.com", "Reminder", "Don't forget!", scheduled_in=timedelta(hours=6)
 )
 ```
 
