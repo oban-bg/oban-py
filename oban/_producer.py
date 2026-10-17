@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
@@ -125,6 +126,7 @@ class Producer(Looper):
         node: str,
         notifier: Notifier,
         query: Query,
+        shutdown_grace_period: float | None = 15.0,
         **extra,
     ) -> None:
         self._debounce_interval = debounce_interval
@@ -137,6 +139,7 @@ class Producer(Looper):
         self._paused = paused
         self._query = query
         self._queue = queue
+        self._shutdown_grace_period = shutdown_grace_period
 
         self._validate()
 
@@ -189,6 +192,8 @@ class Producer(Looper):
             await self._notifier.unlisten(self._listen_token)
 
             running_tasks = [task for (_job, task) in self._running_jobs.values()]
+            shutdown_started = time.monotonic_ns()
+            orphaned = []
 
             if running_tasks:
                 try:
@@ -202,7 +207,16 @@ class Producer(Looper):
                         "Failed to update producer %s during shutdown", self._uuid
                     )
 
-            await asyncio.gather(*running_tasks, return_exceptions=True)
+                orphaned = await self._drain_running()
+
+            telemetry.execute(
+                "oban.queue.shutdown",
+                {
+                    "elapsed": time.monotonic_ns() - shutdown_started,
+                    "orphaned": orphaned,
+                    "queue": self._queue,
+                },
+            )
 
             try:
                 await self._ack_jobs()
@@ -338,6 +352,17 @@ class Producer(Looper):
         self._running_jobs.pop(job_id, None)
 
         self.notify()
+
+    async def _drain_running(self) -> list[int]:
+        running = list(self._running_jobs.values())
+        tasks = [task for (_job, task) in running]
+
+        _done, pending = await asyncio.wait(tasks, timeout=self._shutdown_grace_period)
+
+        for task in pending:
+            task.cancel()
+
+        return [job.id for (job, task) in running if task in pending]
 
     async def _on_signal(self, _channel: str, payload: dict) -> None:
         ident = payload.get("ident", "any")

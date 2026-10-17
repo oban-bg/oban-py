@@ -6,25 +6,26 @@ import orjson
 from . import core
 
 EVENTS = [
+    "oban.job.exception",
     "oban.job.start",
     "oban.job.stop",
-    "oban.job.exception",
-    "oban.leader.election.stop",
     "oban.leader.election.exception",
-    "oban.stager.stage.stop",
-    "oban.stager.stage.exception",
-    "oban.lifeline.rescue.stop",
+    "oban.leader.election.stop",
     "oban.lifeline.rescue.exception",
-    "oban.pruner.prune.stop",
-    "oban.pruner.prune.exception",
-    "oban.refresher.refresh.stop",
-    "oban.refresher.refresh.exception",
-    "oban.refresher.cleanup.stop",
-    "oban.refresher.cleanup.exception",
-    "oban.scheduler.evaluate.stop",
-    "oban.scheduler.evaluate.exception",
-    "oban.producer.fetch.stop",
+    "oban.lifeline.rescue.stop",
     "oban.producer.fetch.exception",
+    "oban.producer.fetch.stop",
+    "oban.pruner.prune.exception",
+    "oban.pruner.prune.stop",
+    "oban.queue.shutdown",
+    "oban.refresher.cleanup.exception",
+    "oban.refresher.cleanup.stop",
+    "oban.refresher.refresh.exception",
+    "oban.refresher.refresh.stop",
+    "oban.scheduler.evaluate.exception",
+    "oban.scheduler.evaluate.stop",
+    "oban.stager.stage.exception",
+    "oban.stager.stage.stop",
 ]
 
 JOB_FIELDS = [
@@ -50,6 +51,9 @@ class _LoggerHandler:
         self.logger = logger or logging.getLogger("oban")
 
     def _handle_event(self, name: str, meta: dict[str, Any]) -> None:
+        if name == "oban.queue.shutdown" and not meta["orphaned"]:
+            return
+
         data = self._format_event(name, meta)
         level = self._get_level(name)
         message = orjson.dumps(data).decode()
@@ -59,6 +63,8 @@ class _LoggerHandler:
     def _format_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         if name.startswith("oban.job"):
             return self._format_job_event(name, meta)
+        elif name == "oban.queue.shutdown":
+            return self._format_shutdown_event(name, meta)
         else:
             return self._format_loop_event(name, meta)
 
@@ -86,6 +92,15 @@ class _LoggerHandler:
 
         return data
 
+    def _format_shutdown_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "elapsed": self._to_ms(meta["elapsed"]),
+            "event": name,
+            "message": "jobs were orphaned because they didn't finish executing in the allotted time",
+            "orphaned": meta["orphaned"],
+            "queue": meta["queue"],
+        }
+
     def _format_loop_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         data = {key: val for key, val in meta.items() if key != "system_time"}
 
@@ -97,6 +112,8 @@ class _LoggerHandler:
     def _get_level(self, name: str) -> int:
         if name.startswith("oban.job"):
             return self.level
+        elif name == "oban.queue.shutdown":
+            return logging.WARNING
         elif name.endswith(".exception"):
             return logging.ERROR
         else:

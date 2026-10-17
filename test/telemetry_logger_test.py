@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from oban import worker
+from oban import telemetry, worker
 from oban.telemetry import logger
 from oban.testing import process_job
 
@@ -80,3 +80,23 @@ class TestLoggerHandler:
         assert error_data["error_message"] == "Worker failed"
         assert error_data["duration"] > 0
         assert error_data["queue_time"] > 0
+
+    def test_logs_shutdown_events_with_orphaned_jobs(self, caplog):
+        caplog.set_level(logging.DEBUG, logger="oban")
+
+        logger.attach()
+
+        meta = {"elapsed": 15_000_000_000, "queue": "default"}
+
+        telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": []})
+        telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": [1, 2]})
+
+        logger.detach()
+
+        [record] = [rec for rec in caplog.records if rec.name == "oban"]
+        data = json.loads(record.message)
+
+        assert record.levelno == logging.WARNING
+        assert data["event"] == "oban.queue.shutdown"
+        assert data["elapsed"] == 15_000
+        assert data["orphaned"] == [1, 2]

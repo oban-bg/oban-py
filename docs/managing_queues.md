@@ -96,6 +96,8 @@ await oban.stop_queue("priority", node="worker.1")
 ```
 
 Stopping a queue allows running jobs to complete gracefully—it doesn't terminate them immediately.
+Jobs still running after the shutdown grace period are cancelled, see [Graceful
+Shutdown](production.md#graceful-shutdown).
 
 Some use cases for dynamic queues:
 

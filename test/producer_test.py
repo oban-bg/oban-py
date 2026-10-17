@@ -132,6 +132,63 @@ class TestProducerAcks:
             assert fetched.state == "completed"
 
 
+class TestProducerShutdown:
+    @pytest.mark.oban(queues={"default": 1}, shutdown_grace_period=1.0)
+    async def test_waiting_for_jobs_within_grace_period(self, oban_instance):
+        started = asyncio.Event()
+
+        @worker()
+        class BriefWorker:
+            async def process(self, job):
+                started.set()
+                await asyncio.sleep(0.05)
+
+        oban = oban_instance()
+
+        async with oban:
+            job = await oban.enqueue(BriefWorker.new())
+
+            await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        fetched = await oban.get_job(job.id)
+
+        assert fetched.state == "completed"
+
+    @pytest.mark.oban(queues={"default": 1}, shutdown_grace_period=0.05)
+    async def test_cancelling_jobs_running_past_grace_period(self, oban_instance):
+        started = asyncio.Event()
+        calls = []
+
+        telemetry.attach(
+            "test-shutdown",
+            ["oban.queue.shutdown"],
+            lambda _name, meta: calls.append(meta),
+        )
+
+        @worker()
+        class EndlessWorker:
+            async def process(self, job):
+                started.set()
+                await asyncio.sleep(10)
+
+        oban = oban_instance()
+
+        async with oban:
+            job = await oban.enqueue(EndlessWorker.new())
+
+            await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        fetched = await oban.get_job(job.id)
+
+        assert fetched.state == "executing"
+
+        [meta] = calls
+
+        assert meta["queue"] == "default"
+        assert meta["orphaned"] == [job.id]
+        assert meta["elapsed"] > 0
+
+
 class TestProducerCancellation:
     async def test_loop_exits_when_cancellation_surfaces_as_another_error(self):
         producer = Producer(name="Oban", node="worker", notifier=None, query=None)

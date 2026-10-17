@@ -11,6 +11,7 @@ class TestFromEnv:
         monkeypatch.setenv("OBAN_NODE", "node1")
         monkeypatch.setenv("OBAN_POOL_MIN_SIZE", "2")
         monkeypatch.setenv("OBAN_POOL_MAX_SIZE", "20")
+        monkeypatch.setenv("OBAN_SHUTDOWN_GRACE_PERIOD", "30")
 
         conf = Config.from_env()
 
@@ -20,6 +21,7 @@ class TestFromEnv:
         assert conf.node == "node1"
         assert conf.pool_min_size == 2
         assert conf.pool_max_size == 20
+        assert conf.shutdown_grace_period == 30.0
 
     def test_from_env_with_empty_queues(self, monkeypatch):
         monkeypatch.setenv("OBAN_QUEUES", "")

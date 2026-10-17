@@ -107,6 +107,30 @@ pool_max_size = 20
 
 Or directly in embedded mode via `Oban.create_pool(min_size=2, max_size=20)`.
 
+## Graceful Shutdown
+
+When Oban stops, queues stop fetching new jobs and wait for running jobs to finish. Jobs still
+running after the shutdown grace period, 15 seconds by default, are cancelled and left for the
+lifeline to rescue.
+
+Keep the grace period below your platform's own shutdown timeout, e.g. Kubernetes'
+`terminationGracePeriodSeconds` (30 seconds by default), so shutdown finishes before the process
+is killed:
+
+```toml
+shutdown_grace_period = 25
+```
+
+Or directly in embedded mode via `Oban(shutdown_grace_period=25)`. Set it to `None` in embedded
+mode to wait for running jobs indefinitely.
+
+Cancellation is cooperative, so a job stops at its next `await`. Jobs that never await can't be
+interrupted.
+
+Each queue emits an `oban.queue.shutdown` telemetry event as it stops, with the `queue`, the
+`elapsed` time in nanoseconds, and the `orphaned` job ids left executing. The telemetry logger
+reports shutdowns that orphan jobs as a warning.
+
 ## Leadership
 
 Nodes that run queues take part in leader election, and only the leader runs cron scheduling and

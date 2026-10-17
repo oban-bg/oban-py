@@ -53,6 +53,7 @@ class Oban:
         queues: dict[str, QueueConfig] | None = None,
         refresher: dict[str, Any] | None = None,
         scheduler: dict[str, Any] | None = None,
+        shutdown_grace_period: float | None = 15.0,
         stager: dict[str, Any] | None = None,
     ) -> None:
         """Initialize an Oban instance.
@@ -80,6 +81,8 @@ class Oban:
             queues: Queue names mapped to worker limits (default: {})
             refresher: Refresher config options: interval (default: 15.0), max_age (default: 60.0)
             scheduler: Scheduler config options: timezone (default: "UTC")
+            shutdown_grace_period: Seconds to wait for running jobs when stopping before shutdown,
+                                   or None to wait indefinitely (default: 15.0)
             stager: Stager config options: interval (default: 1.0), limit (default: 20_000)
         """
         lifeline = lifeline or {}
@@ -96,6 +99,7 @@ class Oban:
         self._name = name or "Oban"
         self._node = node or _default_node()
         self._prefix = prefix or "public"
+        self._shutdown_grace_period = shutdown_grace_period
         self._query = Query(pool, self._prefix)
 
         self._notifier = notifier or PostgresNotifier(
@@ -110,6 +114,7 @@ class Oban:
                 node=self._node,
                 notifier=self._notifier,
                 queue=queue,
+                shutdown_grace_period=self._shutdown_grace_period,
                 **self._parse_queue_config(queue, config),
             )
             for queue, config in queues.items()
@@ -1033,6 +1038,7 @@ class Oban:
             name=self._name,
             node=self._node,
             notifier=self._notifier,
+            shutdown_grace_period=self._shutdown_grace_period,
             **params,
         )
 
