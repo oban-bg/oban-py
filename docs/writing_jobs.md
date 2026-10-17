@@ -297,3 +297,25 @@ class LinearBackoffWorker:
         # Linear: 30s, 60s, 90s, 120s...
         return 30 * job.attempt
 ```
+
+## Timeouts
+
+Jobs may run indefinitely by default. Implement a `timeout` method to limit how long a job may run,
+in seconds:
+
+```python
+@worker(queue="default")
+class ExportWorker:
+    async def process(self, job):
+        await export_report(job.args["report_id"])
+
+    def timeout(self, job):
+        # Allow more time on each attempt: 60s, 120s, 180s...
+        return 60 * job.attempt
+```
+
+A job that exceeds its timeout fails with a `JobTimeoutError` and is retried like any other
+error. Returning `None` from the `timeout` method disables the timeout entirely.
+
+Cancellation is cooperative, so a timed out job stops at its next `await`. Note that blocking code
+that never awaits can't be interrupted, and runs until it returns on its own.

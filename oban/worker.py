@@ -91,6 +91,27 @@ class Worker(Protocol):
         """
         ...
 
+    def timeout(self, job: Job) -> float | None:
+        """Calculate the maximum time a job may run before it's cancelled.
+
+        This method is optional. If not implemented, jobs may run indefinitely.
+
+        Cancellation is cooperative, so a timed out job stops at its next ``await``. Blocking
+        code that never awaits can't be interrupted. The job then fails with a `JobTimeoutError`
+        and is retried according to the usual backoff.
+
+        Args:
+            job: The executing Job instance
+
+        Returns:
+            Maximum runtime in seconds, or None for no limit
+        """
+        ...
+
+
+class JobTimeoutError(TimeoutError):
+    """Raised when a job runs longer than its worker's timeout."""
+
 
 class WorkerResolutionError(Exception):
     """Raised when a worker class cannot be resolved from a path string.

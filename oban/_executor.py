@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import time
 import traceback
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._backoff import jittery_clamped
 from ._extensions import use_ext
 from .job import Cancel, Record, Snooze
-from .worker import resolve_worker
+from .worker import JobTimeoutError, resolve_worker
 
 if TYPE_CHECKING:
     from .job import Job
@@ -74,12 +75,30 @@ class Executor:
 
         try:
             self.worker = resolve_worker(self.job.worker)()
-            self.result = await self.worker.process(self.job)
+            self.result = await self._perform(self.worker)
         except Exception as error:
             self.result = error
             self._traceback = traceback.format_exc()
         finally:
             _current_job.reset(token)
+
+    async def _perform(self, worker: Any) -> Any:
+        seconds = self._timeout()
+
+        try:
+            async with asyncio.timeout(seconds) as deadline:
+                return await worker.process(self.job)
+        except TimeoutError as error:
+            if deadline.expired():
+                raise JobTimeoutError(
+                    f"{self.job.worker} timed out after {seconds}s"
+                ) from error
+
+            raise
+
+    def _timeout(self) -> float | None:
+        if hasattr(self.worker, "timeout"):
+            return self.worker.timeout(self.job)
 
     def _record_stopped(self) -> None:
         # This is largely for type checking, as executing an unpersisted job wouldn't happen

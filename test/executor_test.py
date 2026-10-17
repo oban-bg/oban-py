@@ -1,9 +1,11 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from oban import job, telemetry, worker
 from oban._executor import Executor
+from oban.worker import JobTimeoutError
 
 
 @worker()
@@ -115,3 +117,36 @@ class TestExecutorCurrentJob:
         await Executor(echo.new(123)).execute()
 
         assert current_job
+
+
+@worker()
+class SlowWorker:
+    async def process(self, job):
+        await asyncio.sleep(1)
+
+    def timeout(self, job):
+        return 0.01
+
+
+@worker()
+class RaisingTimeoutWorker:
+    async def process(self, job):
+        raise TimeoutError("upstream timed out")
+
+    def timeout(self, job):
+        return 1
+
+
+class TestExecutorTimeout:
+    async def test_timing_out_slow_jobs(self):
+        executor = await Executor(SlowWorker.new()).execute()
+
+        assert executor.status == "retryable"
+        assert isinstance(executor.result, JobTimeoutError)
+        assert "timed out after 0.01s" in executor.action.error["error"]
+
+    async def test_preserving_timeouts_raised_by_jobs(self):
+        executor = await Executor(RaisingTimeoutWorker.new()).execute()
+
+        assert type(executor.result) is TimeoutError
+        assert str(executor.result) == "upstream timed out"
