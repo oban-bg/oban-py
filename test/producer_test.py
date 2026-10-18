@@ -131,6 +131,32 @@ class TestProducerAcks:
             assert fetched is not None
             assert fetched.state == "completed"
 
+    @pytest.mark.oban(queues={"default": 1})
+    async def test_stale_ack_ignored_after_job_reattempted(self, oban_instance):
+        finished = asyncio.Event()
+
+        async with oban_instance() as oban:
+
+            @worker()
+            class ReattemptedWorker:
+                async def process(self, job):
+                    async with oban._connection() as conn:
+                        await conn.execute(
+                            "UPDATE oban_jobs SET attempted_at = attempted_at + interval '1 second' WHERE id = %s",
+                            (job.id,),
+                        )
+
+                    finished.set()
+
+            job = await oban.enqueue(ReattemptedWorker.new())
+
+            await asyncio.wait_for(finished.wait(), timeout=1.0)
+            await asyncio.sleep(0.1)
+
+            fetched = await oban.get_job(job.id)
+            assert fetched is not None
+            assert fetched.state == "executing"
+
 
 class TestProducerShutdown:
     @pytest.mark.oban(queues={"default": 1}, shutdown_grace_period=1.0)

@@ -33,6 +33,10 @@ class AckAction:
     def id(self) -> int | None:
         return self.job.id
 
+    @property
+    def attempted_at(self) -> datetime | None:
+        return self.job.attempted_at
+
 
 class Executor:
     def __init__(self, job: Job, safe: bool = True):

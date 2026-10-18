@@ -22,6 +22,7 @@ ConnectionLike = AsyncConnection | AsyncCursor | Any
 
 ACKABLE_FIELDS = [
     "id",
+    "attempted_at",
     "state",
     "attempt_change",
     "schedule_in",
