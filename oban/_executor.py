@@ -20,6 +20,26 @@ if TYPE_CHECKING:
 _current_job: ContextVar[Job | None] = ContextVar("oban_current_job", default=None)
 
 
+def current_job() -> Job | None:
+    """Return the job currently executing in this context.
+
+    The job is available from the moment execution starts until it is recorded, including within
+    `oban.job.start`, `oban.job.stop`, and `oban.job.exception` telemetry handlers. Outside of
+    job execution it returns `None`.
+
+    This is primarily useful for function workers defined with `@job`, which don't receive the job
+    as an argument.
+
+    Example:
+        >>> from oban import current_job, job
+        >>>
+        >>> @job()
+        ... def send_digest(user_id):
+        ...     print(current_job().attempt)
+    """
+    return _current_job.get()
+
+
 @dataclass(frozen=True, slots=True)
 class AckAction:
     job: Job
@@ -52,13 +72,19 @@ class Executor:
 
     @staticmethod
     def current_job() -> Job | None:
-        return _current_job.get()
+        return current_job()
 
     async def execute(self) -> Executor:
-        self._report_started()
-        await self._process()
-        self._record_stopped()
-        self._report_stopped()
+        token = _current_job.set(self.job)
+
+        try:
+            self._report_started()
+            await self._process()
+            self._record_stopped()
+            self._report_stopped()
+        finally:
+            _current_job.reset(token)
+
         self._reraise_unsafe()
 
         return self
@@ -75,16 +101,12 @@ class Executor:
         )
 
     async def _process(self) -> None:
-        token = _current_job.set(self.job)
-
         try:
             self.worker = resolve_worker(self.job.worker)()
             self.result = await self._perform(self.worker)
         except Exception as error:
             self.result = error
             self._traceback = traceback.format_exc()
-        finally:
-            _current_job.reset(token)
 
     async def _perform(self, worker: Any) -> Any:
         seconds = self._timeout()

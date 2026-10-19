@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from oban import job, telemetry, worker
+from oban import current_job, job, telemetry, worker
 from oban._executor import Executor
 from oban.worker import JobTimeoutError
 
@@ -117,6 +117,23 @@ class TestExecutorCurrentJob:
         await Executor(echo.new(123)).execute()
 
         assert current_job
+
+    async def test_current_job_is_set_through_exception_telemetry(self):
+        seen = []
+
+        def handler(_name, _meta):
+            seen.append(current_job())
+
+        telemetry.attach("test-current-job", ["oban.job.exception"], handler)
+
+        job = FailureWorker.new()
+
+        await Executor(job).execute()
+
+        telemetry.detach("test-current-job")
+
+        assert seen == [job]
+        assert current_job() is None
 
 
 @worker()

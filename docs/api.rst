@@ -19,6 +19,8 @@ Job
    :no-undoc-members:
    :show-inheritance:
 
+.. autofunction:: oban.current_job
+
 Worker
 ------
 
