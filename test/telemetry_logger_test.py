@@ -100,3 +100,6 @@ class TestLoggerHandler:
         assert data["event"] == "oban.queue.shutdown"
         assert data["elapsed"] == 15_000
         assert data["orphaned"] == [1, 2]
+
+    def test_default_events_are_all_emitted_events(self):
+        assert set(logger.EVENTS) <= set(telemetry.EVENTS)

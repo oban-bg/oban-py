@@ -144,6 +144,48 @@ previous lease expires, which can take up to the leader interval of 30 seconds b
 Every instance needs a distinct node name for leadership to work, see the
 [node identity note](managing_queues.md) for the default and how to override it.
 
+## Telemetry Events
+
+The telemetry logger is built on Oban's telemetry events, which you can also attach to directly
+for metrics, tracing, or error reporting:
+
+```python
+from oban import telemetry
+
+
+def handle_event(name, meta): ...
+
+
+telemetry.attach("my-app", ["oban.job.stop", "oban.job.exception"], handle_event)
+```
+
+Job execution emits `oban.job.start`, followed by either `oban.job.stop` or
+`oban.job.exception`. Each includes the `job`, and the stop and exception events add the final
+`state`, `duration`, and `queue_time` in nanoseconds. Exception events also carry the
+`error_type`, `error_message`, and `traceback`.
+
+Internal processes report their work as spans, emitting `.start`, `.stop`, and `.exception`
+events under these prefixes:
+
+| Prefix                    | Metadata                           |
+| ------------------------- | ---------------------------------- |
+| `oban.leader.election`    | `leader`                           |
+| `oban.lifeline.rescue`    | `rescued_count`                    |
+| `oban.producer.ack`       | `queue`, `count`                   |
+| `oban.producer.get`       | `queue`, `count`                   |
+| `oban.pruner.prune`       | `pruned_count`                     |
+| `oban.refresher.cleanup`  | `cleanup_count`                    |
+| `oban.refresher.refresh`  | `refreshed_count`                  |
+| `oban.scheduler.evaluate` | `cron_at`, `enqueued_count`        |
+| `oban.stager.stage`       | `staged_count`, `available_queues` |
+
+Stop and exception events include the span's `duration`, and exception events add the
+`error_type`, `error_message`, and `traceback`. Queues also emit `oban.queue.shutdown`, covered
+under Graceful Shutdown above.
+
+Attaching to a name that's never emitted fails silently, so check your subscriptions against
+`oban.telemetry.EVENTS`, the complete list of emitted events.
+
 ## Ship It!
 
 Whether you're using the CLI or embedded mode, you now have:

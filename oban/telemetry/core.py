@@ -50,14 +50,14 @@ def attach(id: str, events: list[str], handler: Handler) -> None:
 
     Args:
         id: Unique identifier for this handler (used for detaching)
-        events: List of event names to handle (e.g., ["oban.job.execute.start"])
+        events: List of event names to handle (e.g., ["oban.job.start"])
         handler: Function called with (name, metadata) for each event
 
     Example:
         def log_events(name, metadata):
             print(f"{name}: {metadata}")
 
-        telemetry.attach("my-logger", ["oban.job.execute.stop"], log_events)
+        telemetry.attach("my-logger", ["oban.job.stop"], log_events)
     """
     with _lock:
         for name in events:
@@ -89,11 +89,11 @@ def execute(name: str, metadata: Metadata) -> None:
     and logged to prevent breaking instrumented code.
 
     Args:
-        name: Name of the event (e.g., "oban.job.execute.start")
+        name: Name of the event (e.g., "oban.job.start")
         metadata: Event metadata (job_id, duration, etc.)
 
     Example:
-        telemetry.execute("oban.job.execute.start", {"job_id": 123, "queue": "default"})
+        telemetry.execute("myapp.report.start", {"report_id": 123})
     """
     with _lock:
         handlers = [handler for (_id, handler) in _handlers.get(name, [])]
@@ -115,20 +115,20 @@ def span(prefix: str, start_metadata: Metadata):
     - {prefix}.exception - When an exception is raised
 
     Args:
-        prefix: Event name prefix (e.g., "oban.job.execute")
+        prefix: Event name prefix (e.g., "oban.pruner.prune")
         start_metadata: Metadata included in all events
 
     Yields:
         Collector: Object for adding additional metadata during execution
 
     Example:
-        with telemetry.span("oban.job.execute", {"job_id": 123}) as collector:
-            result = process_job()
-            collector.add({"state": result.state})
+        with telemetry.span("myapp.report", {"report_id": 123}) as collector:
+            rows = generate_report()
+            collector.add({"row_count": len(rows)})
 
         # Emits:
-        # - "oban.job.execute.start" with job_id and system_time
-        # - "oban.job.execute.stop" with job_id, state, duration, and system_time
+        # - "myapp.report.start" with report_id and system_time
+        # - "myapp.report.stop" with report_id, row_count, duration, and system_time
     """
     start_time = time.monotonic_ns()
 
