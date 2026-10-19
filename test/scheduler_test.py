@@ -44,6 +44,8 @@ class TestExpressionParse:
             "* * 32 * *",
             "* * * 13 *",
             "* * * * 8",
+            "0-99999999 * * * *",
+            "0-99999999/1 * * * *",
         ]
 
         for input in inputs:

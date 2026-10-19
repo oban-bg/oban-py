@@ -171,9 +171,10 @@ class Expression:
                 rmax = int(rmax)
 
                 if rmin > rmax:
-                    raise ValueError(
-                        f"min of range ({rmin}) must be less than or equal to max"
-                    )
+                    raise ValueError(f"min {rmin} must be less than or equal to max")
+
+                if rmin < min(allowed) or rmax > max(allowed):
+                    raise ValueError(f"range {part} is out of range: {allowed}")
 
                 return set(range(rmin, rmax + 1))
             case _:
