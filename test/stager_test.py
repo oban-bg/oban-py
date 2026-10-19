@@ -54,3 +54,24 @@ class TestStagerStop:
 
         assert finished.is_set()
         assert stager._loop_task.done()
+
+
+class TestStagerFailure:
+    async def test_notifies_all_producers_when_staging_fails(self):
+        notified = asyncio.Event()
+
+        class FailingQuery:
+            async def stage_jobs(self, limit, queues):
+                raise RuntimeError("staging failed")
+
+        class Producer:
+            def notify(self):
+                notified.set()
+
+        stager = Stager(
+            query=FailingQuery(), notifier=None, producers={"default": Producer()}
+        )
+        stager._loop_task = asyncio.create_task(stager._loop())
+
+        await asyncio.wait_for(notified.wait(), timeout=1.0)
+        await stager.stop()

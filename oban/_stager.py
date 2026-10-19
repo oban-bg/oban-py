@@ -84,6 +84,9 @@ class Stager(Looper):
             except Exception as error:
                 logger.warning("Stager failed to stage jobs: %s", error, exc_info=True)
 
+                for producer in self._producers.values():
+                    producer.notify()
+
             await sleep_until_stopped(self._stopping, self._interval)
 
     async def _on_notification(self, channel: str, payload: dict) -> None:
