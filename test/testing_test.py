@@ -247,6 +247,17 @@ class TestAssertEnqueued:
         await assert_enqueued(worker=Delayed, scheduled_in=timedelta(hours=1))
         await refute_enqueued(worker=Delayed, scheduled_in=60)
 
+    async def test_assert_enqueued_with_suspended_job(self, oban_instance):
+        @worker()
+        class Suspended:
+            async def process(self, job):
+                pass
+
+        oban = oban_instance()
+        await oban.enqueue(Suspended.new(state="suspended"))
+
+        await assert_enqueued(worker=Suspended)
+
     async def test_assert_enqueued_raises_on_no_match(self, oban_instance):
         @worker(queue="alpha")
         class Alpha:

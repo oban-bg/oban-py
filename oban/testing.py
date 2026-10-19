@@ -129,7 +129,7 @@ async def all_enqueued(*, oban: str | Oban = "Oban", **filters) -> list[Job]:
     if "worker" in filters and not isinstance(filters["worker"], str):
         filters["worker"] = worker_name(filters["worker"])
 
-    jobs = await oban._query.all_jobs(["available", "scheduled"])
+    jobs = await oban._query.all_jobs(["available", "scheduled", "suspended"])
 
     return [job for job in jobs if _match_filters(job, filters)]
 
@@ -168,7 +168,7 @@ def _args_match(expected: dict, actual: dict) -> bool:
 async def assert_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **filters):
     """Assert that a job matching the given criteria was enqueued.
 
-    This helper queries the database for jobs in 'available' or 'scheduled' state
+    This helper queries the database for jobs in 'available', 'scheduled', or 'suspended' state
     that match the provided filters. With a timeout, it will poll repeatedly until
     a matching job is found or the timeout expires.
 
@@ -228,7 +228,7 @@ async def assert_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **fi
 async def refute_enqueued(*, oban: str | Oban = "Oban", timeout: float = 0, **filters):
     """Assert that no job matching the given criteria was enqueued.
 
-    This helper queries the database for jobs in 'available' or 'scheduled' state
+    This helper queries the database for jobs in 'available', 'scheduled', or 'suspended' state
     that match the provided filters and asserts that none are found. With a timeout,
     it will poll repeatedly during the timeout period to ensure no matching job appears.
 
