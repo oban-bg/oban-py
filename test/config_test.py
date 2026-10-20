@@ -23,6 +23,11 @@ class TestFromEnv:
         assert conf.pool_max_size == 20
         assert conf.shutdown_grace_period == 30.0
 
+    def test_from_env_with_notifier_type(self, monkeypatch):
+        monkeypatch.setenv("OBAN_NOTIFIER", "erlang")
+
+        assert Config.from_env().notifier == {"type": "erlang"}
+
     def test_from_env_with_empty_queues(self, monkeypatch):
         monkeypatch.setenv("OBAN_QUEUES", "")
 
@@ -105,6 +110,11 @@ class TestMerge:
         conf = conf_a.merge(conf_b)
 
         assert conf.pruner == {"max_age": 3600, "interval": 120}
+
+    def test_merge_dict_config_into_unset(self):
+        conf = Config().merge(Config(notifier={"type": "erlang"}))
+
+        assert conf.notifier == {"type": "erlang"}
 
 
 class TestLoad:
