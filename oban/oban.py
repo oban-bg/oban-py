@@ -14,10 +14,11 @@ from typing import Any, Self
 
 from psycopg_pool import AsyncConnectionPool
 
+from ._extensions import use_ext
 from ._leader import Leader
 from ._lifeline import Lifeline
 from ._metrics import Metrics
-from ._notifier import Notifier, PostgresNotifier
+from ._notifier import build_notifier
 from ._producer import Producer, QueueInfo
 from ._pruner import Pruner
 from ._query import ConnectionLike, Query
@@ -47,7 +48,7 @@ class Oban:
         metrics: dict[str, Any] | bool | None = None,
         name: str | None = None,
         node: str | None = None,
-        notifier: Notifier | None = None,
+        notifier: dict[str, Any] | None = None,
         prefix: str | None = None,
         pruner: dict[str, Any] | None = None,
         queues: dict[str, QueueConfig] | None = None,
@@ -74,7 +75,9 @@ class Oban:
             name: Name for this instance in the registry (default: "oban")
             node: Node identifier for this instance, which must be unique per running
                 instance (default: hostname and process id, e.g. "web-1.4021")
-            notifier: Notifier instance for pub/sub (default: PostgresNotifier with default config)
+            notifier: Notifier config options: type (default: "postgres"), plus options for
+                      that type. Pass {"type": "postgres", "beat_interval": 15.0} to tune the
+                      default PostgreSQL notifier.
             prefix: PostgreSQL schema where Oban tables are located (default: "public")
             pruner: Pruning config options: max_age in seconds (default: 86_400.0, 1 day),
                     interval (default: 60.0), limit (default: 20_000).
@@ -102,8 +105,8 @@ class Oban:
         self._shutdown_grace_period = shutdown_grace_period
         self._query = Query(pool, self._prefix)
 
-        self._notifier = notifier or PostgresNotifier(
-            query=self._query, prefix=self._prefix
+        self._notifier = use_ext(
+            "notifier.build", build_notifier, notifier or {}, self._query
         )
 
         self._producers = {

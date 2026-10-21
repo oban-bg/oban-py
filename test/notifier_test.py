@@ -4,7 +4,7 @@ import pytest
 from psycopg_pool import AsyncConnectionPool
 
 from oban import Oban
-from oban._notifier import decode_payload, encode_payload
+from oban._notifier import PostgresNotifier, decode_payload, encode_payload
 
 
 class TestEncodeDecode:
@@ -27,6 +27,18 @@ class TestEncodeDecode:
         decoded = decode_payload('{"queue": "default", "id": 456}')
 
         assert decoded == payload
+
+
+class TestBuildNotifier:
+    async def test_building_with_options(self, oban_instance):
+        notifier = oban_instance(notifier={"beat_interval": 5.0})._notifier
+
+        assert isinstance(notifier, PostgresNotifier)
+        assert notifier._beat_interval == 5.0
+
+    async def test_rejecting_unknown_types(self, oban_instance):
+        with pytest.raises(ValueError, match="unknown notifier type: 'carrier'"):
+            oban_instance(notifier={"type": "carrier"})
 
 
 class TestNotifier:

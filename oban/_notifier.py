@@ -57,6 +57,20 @@ def decode_payload(payload: str) -> dict:
         return orjson.loads(unzipped.decode("utf-8"))
 
 
+def build_notifier(spec: dict[str, Any], query: Query) -> Notifier:
+    """Build the notifier described by an Oban ``notifier`` config.
+
+    The default for the ``notifier.build`` extension. The ``type`` key picks the
+    implementation and the remaining keys are passed through as options.
+    """
+    options = {key: value for key, value in spec.items() if key != "type"}
+
+    if (kind := spec.get("type", "postgres")) != "postgres":
+        raise ValueError(f"unknown notifier type: {kind!r}")
+
+    return PostgresNotifier(query=query, prefix=query._prefix, **options)
+
+
 @runtime_checkable
 class Notifier(Protocol):
     """Protocol for pub/sub notification systems.

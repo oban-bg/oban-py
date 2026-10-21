@@ -10,8 +10,6 @@ from psycopg_pool import AsyncConnectionPool
 
 from oban import Oban
 
-from ._extensions import use_ext
-
 
 @dataclass
 class Config:
@@ -197,19 +195,11 @@ class Config:
     ) -> Oban:
         pool = pool or await self.create_pool()
 
-        notifier = use_ext(
-            "notifier.build",
-            lambda spec, prefix, pool: None,
-            self.notifier,
-            self.prefix,
-            pool,
-        )
-
         params: dict[str, Any] = {
             "pool": pool,
             "dispatcher": dispatcher,
             "name": self.name,
-            "notifier": notifier,
+            "notifier": self.notifier,
             "prefix": self.prefix,
             "queues": self.queues,
         }
