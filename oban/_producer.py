@@ -357,6 +357,9 @@ class Producer(Looper):
         running = list(self._running_jobs.values())
         tasks = [task for (_job, task) in running]
 
+        if not tasks:
+            return []
+
         _done, pending = await asyncio.wait(tasks, timeout=self._shutdown_grace_period)
 
         for task in pending:
