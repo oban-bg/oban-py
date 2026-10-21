@@ -83,8 +83,8 @@ class Leader(Looper):
         if self._is_leader:
             payload = {"action": "resign", "node": self._node, "name": self._name}
 
-            await self._notifier.notify("leader", payload)
             await self._query.resign_leader(self._name, self._node)
+            await self._notifier.notify("leader", payload)
 
     async def _loop(self) -> None:
         while not self._stopping.is_set():
