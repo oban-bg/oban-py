@@ -433,14 +433,15 @@ class Query:
 
             await conn.execute(stmt, args)
 
-    async def refresh_producers(self, uuids: list[str]) -> int:
+    async def refresh_producers(self, uuids: list[str]) -> list[str]:
         async with self._pool.connection() as conn:
             stmt = self._load_file("refresh_producers.sql", self._prefix)
             args = {"uuids": uuids}
 
             result = await conn.execute(stmt, args)
+            rows = await result.fetchall()
 
-            return result.rowcount
+            return [uuid for (uuid,) in rows]
 
     async def update_producer(self, uuid: str, meta: dict[str, Any]) -> None:
         async with self._pool.connection() as conn:

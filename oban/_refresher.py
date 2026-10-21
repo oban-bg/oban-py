@@ -73,14 +73,22 @@ class Refresher(Looper):
 
     async def _refresh(self) -> None:
         with telemetry.span("oban.refresher.refresh", {}) as context:
-            uuids = [producer._uuid for producer in self._producers.values()]
+            producers = list(self._producers.values())
 
-            if uuids:
+            if producers:
+                uuids = [producer._uuid for producer in producers]
                 refreshed = await self._query.refresh_producers(uuids)
             else:
-                refreshed = 0
+                refreshed = []
 
-            context.add({"refreshed_count": refreshed})
+            missing = [prod for prod in producers if prod._uuid not in refreshed]
+
+            for producer in missing:
+                await producer.restore()
+
+            context.add(
+                {"refreshed_count": len(refreshed), "restored_count": len(missing)}
+            )
 
     async def _cleanup(self) -> None:
         if not self._leader.is_leader:

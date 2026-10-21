@@ -180,6 +180,15 @@ class Producer(Looper):
                 self._loop(), name=f"oban-producer-{self._queue}"
             )
 
+    async def restore(self) -> None:
+        await self._query.insert_producer(
+            uuid=self._uuid,
+            name=self._name,
+            node=self._node,
+            queue=self._queue,
+            meta=use_ext("producer.restore", _init, self),
+        )
+
     async def stop(self) -> None:
         async with self._init_lock:
             if not self._listen_token or not self._loop_task:

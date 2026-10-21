@@ -167,17 +167,17 @@ Job execution emits `oban.job.start`, followed by either `oban.job.stop` or
 Internal processes report their work as spans, emitting `.start`, `.stop`, and `.exception`
 events under these prefixes:
 
-| Prefix                    | Metadata                           |
-| ------------------------- | ---------------------------------- |
-| `oban.leader.election`    | `leader`                           |
-| `oban.lifeline.rescue`    | `rescued_count`                    |
-| `oban.producer.ack`       | `queue`, `count`                   |
-| `oban.producer.get`       | `queue`, `count`                   |
-| `oban.pruner.prune`       | `pruned_count`                     |
-| `oban.refresher.cleanup`  | `cleanup_count`                    |
-| `oban.refresher.refresh`  | `refreshed_count`                  |
-| `oban.scheduler.evaluate` | `cron_at`, `enqueued_count`        |
-| `oban.stager.stage`       | `staged_count`, `available_queues` |
+| Prefix                    | Metadata                            |
+| ------------------------- | ----------------------------------- |
+| `oban.leader.election`    | `leader`                            |
+| `oban.lifeline.rescue`    | `rescued_count`                     |
+| `oban.producer.ack`       | `queue`, `count`                    |
+| `oban.producer.get`       | `queue`, `count`                    |
+| `oban.pruner.prune`       | `pruned_count`                      |
+| `oban.refresher.cleanup`  | `cleanup_count`                     |
+| `oban.refresher.refresh`  | `refreshed_count`, `restored_count` |
+| `oban.scheduler.evaluate` | `cron_at`, `enqueued_count`         |
+| `oban.stager.stage`       | `staged_count`, `available_queues`  |
 
 Stop and exception events include the span's `duration`, and exception events add the
 `error_type`, `error_message`, and `traceback`. Queues also emit `oban.queue.shutdown`, covered

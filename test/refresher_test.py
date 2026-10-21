@@ -88,6 +88,25 @@ class TestRefresher:
 
         await oban.stop()
 
+    @pytest.mark.oban(queues={"alpha": 1, "gamma": 1})
+    async def test_refresher_restores_missing_producers(self, oban_instance):
+        oban = oban_instance()
+
+        await oban.start()
+
+        async with oban._connection() as conn:
+            initial = await all_producers(conn)
+
+            # Simulate unlogged tables being reset after a crash or failover
+            await conn.execute("DELETE FROM oban_producers")
+
+        await oban._refresher._refresh()
+
+        async with oban._connection() as conn:
+            assert await all_producers(conn) == initial
+
+        await oban.stop()
+
     @pytest.mark.oban(leadership=True, queues={"alpha": 1})
     async def test_leader_cleans_up_expired_producers(self, oban_instance):
         oban = oban_instance(refresher={"interval": 0.05, "max_age": 0.1})
