@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._extensions import use_ext
@@ -20,6 +20,14 @@ async def _rescue(query: Query, rescue_after: float) -> None:
         rescued = await query.rescue_jobs(rescue_after)
 
         context.add({"rescued_count": rescued})
+
+
+def build_lifeline(config: dict[str, Any], *, leader: Leader, query: Query) -> Looper:
+    """Build the lifeline described by an Oban ``lifeline`` config.
+
+    The default for the ``lifeline.build`` extension.
+    """
+    return Lifeline(leader=leader, query=query, **config)
 
 
 class Lifeline(Looper):

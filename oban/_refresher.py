@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._looper import Looper
@@ -13,6 +13,20 @@ if TYPE_CHECKING:
     from ._leader import Leader
     from ._producer import Producer
     from ._query import Query
+
+
+def build_refresher(
+    config: dict[str, Any],
+    *,
+    leader: Leader,
+    producers: dict[str, Producer],
+    query: Query,
+) -> Looper:
+    """Build the refresher described by an Oban ``refresher`` config.
+
+    The default for the ``refresher.build`` extension.
+    """
+    return Refresher(leader=leader, producers=producers, query=query, **config)
 
 
 class Refresher(Looper):

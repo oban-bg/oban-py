@@ -15,16 +15,16 @@ from typing import Any, Self
 from psycopg_pool import AsyncConnectionPool
 
 from ._extensions import use_ext
-from ._leader import Leader
-from ._lifeline import Lifeline
-from ._metrics import Metrics
+from ._leader import build_leader
+from ._lifeline import build_lifeline
+from ._metrics import build_metrics
 from ._notifier import build_notifier
 from ._producer import Producer, QueueInfo
-from ._pruner import Pruner
+from ._pruner import build_pruner
 from ._query import ConnectionLike, Query
-from ._refresher import Refresher
-from ._scheduler import Scheduler
-from ._stager import Stager
+from ._refresher import build_refresher
+from ._scheduler import build_scheduler
+from ._stager import build_stager
 from .job import Job
 
 QueueConfig = int | dict[str, Any]
@@ -123,49 +123,71 @@ class Oban:
             for queue, config in queues.items()
         }
 
-        self._leader = Leader(
-            query=self._query,
-            node=self._node,
+        self._leader = use_ext(
+            "leader.build",
+            build_leader,
+            {"enabled": leadership},
             name=self._name,
-            enabled=leadership,
+            node=self._node,
             notifier=self._notifier,
+            query=self._query,
         )
 
-        self._stager = Stager(
-            query=self._query,
+        self._stager = use_ext(
+            "stager.build",
+            build_stager,
+            stager,
             notifier=self._notifier,
             producers=self._producers,
-            **stager,
+            query=self._query,
         )
 
-        self._lifeline = Lifeline(leader=self._leader, query=self._query, **lifeline)
-        self._pruner = Pruner(leader=self._leader, query=self._query, **pruner)
+        self._lifeline = use_ext(
+            "lifeline.build",
+            build_lifeline,
+            lifeline,
+            leader=self._leader,
+            query=self._query,
+        )
 
-        self._refresher = Refresher(
+        self._pruner = use_ext(
+            "pruner.build",
+            build_pruner,
+            pruner,
+            leader=self._leader,
+            query=self._query,
+        )
+
+        self._refresher = use_ext(
+            "refresher.build",
+            build_refresher,
+            refresher,
             leader=self._leader,
             producers=self._producers,
             query=self._query,
-            **refresher,
         )
 
-        self._scheduler = Scheduler(
+        self._scheduler = use_ext(
+            "scheduler.build",
+            build_scheduler,
+            scheduler,
             leader=self._leader,
             notifier=self._notifier,
             query=self._query,
-            **scheduler,
         )
 
         self._metrics = None
         if metrics:
-            metrics_config = {} if metrics is True else metrics
-            self._metrics = Metrics(
+            self._metrics = use_ext(
+                "metrics.build",
+                build_metrics,
+                {} if metrics is True else metrics,
                 leader=self._leader,
                 name=self._name,
                 node=self._node,
                 notifier=self._notifier,
                 producers=self._producers,
                 query=self._query,
-                **metrics_config,
             )
 
         self._signal_token = None

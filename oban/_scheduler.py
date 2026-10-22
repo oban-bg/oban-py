@@ -6,7 +6,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, tzinfo
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 import orjson
@@ -132,6 +132,16 @@ def register_scheduled(cron: str | dict, worker_cls: type) -> None:
     entry = ScheduledEntry(expression=parsed, worker_cls=worker_cls, timezone=tz)
 
     _scheduled_entries.append(entry)
+
+
+def build_scheduler(
+    config: dict[str, Any], *, leader: Leader, notifier: Notifier, query: Query
+) -> Looper:
+    """Build the scheduler described by an Oban ``scheduler`` config.
+
+    The default for the ``scheduler.build`` extension.
+    """
+    return Scheduler(leader=leader, notifier=notifier, query=query, **config)
 
 
 @dataclass(slots=True, frozen=True)

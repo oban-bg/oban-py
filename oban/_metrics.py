@@ -55,6 +55,31 @@ def _build_sketch(values: list[int]) -> dict[str, Any]:
 ALL_STATES = list(JobState)
 
 
+def build_metrics(
+    config: dict[str, Any],
+    *,
+    leader: Leader,
+    name: str,
+    node: str,
+    notifier: Notifier,
+    producers: dict[str, Producer],
+    query: Query,
+) -> Looper:
+    """Build the metrics described by an Oban ``metrics`` config.
+
+    The default for the ``metrics.build`` extension.
+    """
+    return Metrics(
+        leader=leader,
+        name=name,
+        node=node,
+        notifier=notifier,
+        producers=producers,
+        query=query,
+        **config,
+    )
+
+
 class Metrics(Looper):
     def __init__(
         self,

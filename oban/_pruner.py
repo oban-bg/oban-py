@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._extensions import use_ext
@@ -20,6 +20,14 @@ async def _prune(query: Query, max_age: int, limit: int) -> None:
         pruned = await query.prune_jobs(max_age, limit)
 
         context.add({"pruned_count": pruned})
+
+
+def build_pruner(config: dict[str, Any], *, leader: Leader, query: Query) -> Looper:
+    """Build the pruner described by an Oban ``pruner`` config.
+
+    The default for the ``pruner.build`` extension.
+    """
+    return Pruner(leader=leader, query=query, **config)
 
 
 class Pruner(Looper):
