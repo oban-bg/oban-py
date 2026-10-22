@@ -1,376 +1,186 @@
 # Changelog
 
-Oban is a robust job orchestration framework for Python, backed by PostgreSQL. This is the
-second public release, bringing battle-tested patterns from Oban for Elixir to the Python
-ecosystem with an async-native, Pythonic API.
+This release focuses on controlling jobs with bounded shutdowns, per-job timeouts, and safer acks
+when jobs are rescued and run again on another node.
 
-## Metrics Broadcasting for Oban Web
+## Job Timeouts
 
-This release adds metrics broadcasting, enabling real-time visibility in [Oban Web][web]. When
-enabled, each node publishes queue state, job execution statistics, and cron schedules on the
-gossip channel.
+Jobs could previously run indefinitely, so a hung network call or runaway loop could hold a queue
+slot forever. Workers can now limit how long a job runs by defining a `timeout` method that
+returns the limit in seconds. It receives the job, so the limit can vary by args or attempt:
 
-Metrics include execution timing distributions, job counts by state and queue, running job
-details, and cron schedules. Large tables automatically switch to query planner estimates for
-performance.
+```python
+@worker(queue="default")
+class ExportWorker:
+    async def process(self, job):
+        await export_report(job.args["report_id"])
 
-Enable metrics in your configuration:
+    def timeout(self, job):
+        # Allow more time on each attempt: 60s, 120s, 180s...
+        return 60 * job.attempt
+```
+
+Jobs that exceed their timeout fail with a `JobTimeoutError` and retry with the usual backoff.
+Cancellation is cooperative, so a timed out job stops at its next `await`.
+
+## Shutdown Grace Period
+
+Stopping Oban or a queue previously waited indefinitely for running jobs, so a slow or hung job
+could stall a deploy until the process was killed. Running jobs now have a shutdown grace period,
+15 seconds by default. Jobs still running afterwards are cancelled and left for the lifeline to
+rescue.
 
 ```toml
 [oban]
 queues = {default = 10}
-metrics = true
+shutdown_grace_period = 30
 ```
 
-[web]: https://hexdocs.pm/oban_web/standalone.html
+Each queue emits an `oban.queue.shutdown` telemetry event as it stops, including the ids of any
+orphaned jobs, which the telemetry logger reports as a warning. Set `shutdown_grace_period` to
+`None` to restore the previous behavior of waiting indefinitely.
 
-## v0.6.7 — 2026-10-16
+## Current Job Context
 
-### Enhancements
+Function workers defined with `@job` are concise, but they only receive the job's args, not the
+job itself. The new `oban.current_job()` function returns the job executing in the current
+context, so function workers can read details like the attempt, id, or meta without converting to
+a class worker:
 
-- [Oban] Support Python 3.15
+```python
+from oban import current_job, job
 
-  Python 3.15 is now tested in CI and listed in the package classifiers.
 
-- [Notifier] Support callable `conninfo` for the notifier connection
+@job(queue="billing", max_attempts=5)
+async def charge_invoice(invoice_id: int):
+    job = current_job()
 
-  `psycopg-pool` 3.3 allows a pool's `conninfo` to be a sync or async callable, e.g. to fetch
-  rotating credentials. The notifier passed the callable directly to the connection rather than
-  resolving it, which prevented it from connecting.
+    # Use the job id as an idempotency key so retries never double charge
+    await payments.charge(invoice_id, idempotency_key=f"oban-{job.id}")
 
-- [Producer] Fetch immediately when a queue has no running jobs
+    if job.attempt > 1:
+        logger.warning("Retried invoice %s, attempt %s", invoice_id, job.attempt)
+```
 
-  The producer waits for a short debounce interval before fetching so that completions from
-  running jobs coalesce into fewer fetch queries. With no jobs running there's nothing to coalesce,
-  so that wait only added latency. Skipping it roughly doubles throughput for short-lived jobs,
-  without increasing fetch queries for longer-running work.
+Because it's backed by a context variable, `current_job()` also works in any helper called from
+the job, without threading the job through as an argument. The job is set for the entire
+execution, so it's available within `oban.job.start`, `oban.job.stop`, and `oban.job.exception`
+telemetry handlers and result wrapping extensions as well. Outside of job execution it returns
+`None`.
 
-  The debounce interval is now also jittered between half and double the configured value,
-  matching Oban for Elixir's `dispatch_cooldown`, so producers on multiple nodes don't fetch in
-  lockstep and compete for the same jobs.
-
-### Bug Fixes
-
-- [Deps] Require `orjson` 3.11.6 or later
-
-  Raise the minimum `orjson` version to one that patches a known vulnerability.
-
-- [Oban] Avoid discarding connections when stopping
-
-  Stopping Oban cancelled background loops, and a cancel that landed while a loop was opening a
-  transaction left the connection stuck in a transaction state. The pool then failed to reset it,
-  logged an "Explicit rollback() forbidden" error, and discarded the connection.
-
-  Loops now finish any in-flight query before exiting. Loops that don't exit within a few seconds
-  are still cancelled, so shutdown never hangs.
-
-- [Oban] Raise a clear error when updating a deleted job
-
-  `update_many_jobs` raised an opaque `TypeError` when a job was deleted between fetching and
-  updating it. It now raises a `ValueError` naming the missing job, as fetching does.
-
-- [Producer] Stop producer loop when a cancel surfaces
-
-  When a driver turned a cancellation into a different error, e.g. psycopg raising
-  `OutOfOrderTransactionNesting` during an ack, the producer logged the error and kept running.
-  Since `asyncio` delivers a cancel only once, `Oban.stop()` would hang forever waiting on the
-  producer. The loop now exits as soon as its task has a pending cancellation.
-
-## v0.6.6 — 2026-09-03
-
-### Bug Fixes
-
-- [Oban] Default node name to hostname and process id
-
-  Node names defaulted to the hostname, so multiple Oban processes on one host shared an identity.
-  Leadership is tracked by node name, which let each process renew the other's lease and act as
-  leader simultaneously, and a sibling shutting down deleted the active leader's row.
-
-  We now append the current process id so the default is unique per running instance. Deployments
-  that target nodes by name for pausing or scaling queues must use the new form, or set
-  `OBAN_NODE` explicitly as before.
-
-- [Leader] Serialize elections and concede on failure
-
-  Elections triggered by resignation could overlap with the regular election loop, which let stale
-  results overwrite newer results. Now run elections one at a time, enforced with a lock. If
-  election fails either way, leadership is conceded.
-
-- [Leader] Renew leader lease with a single scoped upsert
-
-  Leader election used separate queries for acquiring and renewing the lease. The acquire query
-  did nothing on conflict, so a node whose row was already stored could never confirm its own
-  leadership, leaving the cluster without a leader until the lease expired.
-
-  Use one upsert that inserts when no lease exists and refreshes only when the row belongs to the
-  same node, matching how Oban does it in Elixir.
-
-- [Scheduler] Evaluate cron entries against the target minute
-
-  The scheduler slept until the next minute and then evaluated whichever wall-clock minute it woke
-  during. Under `uvloop`, timers can fire a _fraction_ of a millisecond early, so waking could
-  land in the previous minute and either enqueue a duplicate or entirely skip the desired minute.
-
-  Now we compute the target before sleeping, keep sleeping until the correct clock time, and use
-  that target regardless of wake time.
-
-  Also record the target as `cron_at` in job meta and telemetry, and log when a tick is skipped
-  for not being the leader.
-
-## v0.6.5 — 2026-07-25
+## v0.7.0 — 2026-10-22
 
 ### Enhancements
 
-- [Dispatcher] Delegate job cancellation through dispatcher
+- [Config] Extend to provide the notifier from config
 
-  Allows dispatchers to cancel jobs across execution boundaries while preserving local
-  cancellation behavior.
+  A new `notifier` setting, from a `[notifier]` table in `oban.toml` or `OBAN_NOTIFIER`, is passed
+  to the `notifier.build` extension hook along with the prefix and connection pool. Extensions can
+  use it to replace the default PostgreSQL notifier without application code changes. Without an
+  extension it's ignored, and the default notifier is used.
 
-### Bug Fixes
+  Fixes dict settings from the environment or CLI being dropped when `oban.toml` didn't also set
+  them.
 
-- [Metrics] Prevent busy-looping metrics broadcast errors
+- [Job] Rename `schedule_in` to `scheduled_in` for relative scheduling
 
-  The metrics loop slept after broadcasting inside the same try block, so any exception from
-  broadcast skipped the sleep and immediately retried. When the connection pool was closed during
-  shutdown, this turned a single benign PoolClosed error into a flood of tracebacks logged as fast
-  as the loop could spin.
+  Using `scheduled_in` is now the correct way to schedule a job relatively, matching the
+  `scheduled_at` field it sets. The `schedule_in` option is still accepted as an alias, and will be
+  removed in 1.0.
 
-  Move the sleep to the top of the loop, matching the other loopers, so failures back off for one
-  interval instead of hot-looping.
+  Testing helpers also accept `scheduled_in`, matching jobs scheduled that far from now within a
+  second, so assertions don't need to compute an exact `scheduled_at`.
 
-## v0.6.4 — 2026-06-16
+- [Notifier] Build notifier from a config dict
 
-### Enhancement
+  Oban now accepts `notifier` as a dict, like the other component options, and builds the notifier
+  itself with the instance's connection pool and prefix.
 
-- [Job] Use `Mapping` instead of `dict` for job args type
+- [Oban] Build background components through extensions
 
-  This will allow users to pass a `TypedDict` as the job args parameter, as well as a normal
-  dictionary.
+  All looping services are constructed through `<name>.build` extensions, matching the existing
+  `notifier.build`.
 
-### Bug Fixes
+- [Oban] Expose `current_job` and retain through telemetry
 
-- [Producer] Prevent exceeding max_attempts during fetch
+  Add the `oban.current_job()` function to fetch the job executing in the current context. This is
+  primarily for function workers that don't receive the job as an argument.
 
-  A stale worker whose job had been rescued and re-fetched elsewhere could ack the job back into a
-  fetchable state at its attempt ceiling. The next fetch would then increment the counter past
-  max_attempts, tripping the `attempt_range` check constraint. Because jobs are fetched in a
-  single batched update, one offending row aborted the entire fetch and permanently stalled the
-  queue.
+  The current job is also set for the entire execution, rather than only while the worker runs, so
+  it's available within `oban.job.start`, `oban.job.stop`, and `oban.job.exception` telemetry
+  handlers, as well as result wrapping extensions.
 
-  Ack queries now only apply to jobs that are still executing, so a duplicate worker can no longer
-  resurrect a job another node has taken over. Fetch skips any job already at its attempt ceiling,
-  and the rescuer discards jobs stranded as available with no remaining attempts.
+- [Producer] Cancel jobs running after shutdown grace period
 
-- [Schema] Stop setting the schema version comment
+  Stopping Oban or a queue previously waited indefinitely for running jobs, so a slow or hung job
+  could stall shutdown until the process was killed.
 
-  The install task set a "1" comment on `oban_jobs` to mark the schema version, but nothing in the
-  Python codebase ever read it back. In a co-located Elixir + Python deployment this clobbered the
-  version Elixir records (e.g. "14"), breaking Elixir's migration version check and raising at
-  runtime.
+  Running jobs now have a `shutdown_grace_period` to finish, 15 seconds by default. Jobs still
+  running afterwards are cancelled at their next await and left for the lifeline to rescue. Set
+  `shutdown_grace_period` to `None` to restore the previous behavior of waiting indefinitely.
 
-  Since the install is already idempotent and Python verifies its schema by checking table
-  existence, drop the comment entirely and leave the Elixir version untouched.
+  Each queue emits an `oban.queue.shutdown` telemetry event as it stops, including the ids of any
+  orphaned jobs, which the telemetry logger reports as a warning.
 
-## v0.6.3 — 2026-06-02
+- [Telemetry] Publish canonical telemetry event names
 
-### Enhancement
+  Add `oban.telemetry.EVENTS`, listing every emitted event, so integrations can validate the names
+  they attach to. Attaching to an event that's never emitted otherwise fails silently.
 
-- [Schema] Make reset query extensible
+  The telemetry logger now correctly logs the actual `oban.producer.get.*` and
+  `oban.producer.ack.*` events as well.
 
-  Promote reset to an extension pattern so downstream packages can wrap it. The default behavior
-  is unchanged.
+- [Testing] Include suspended jobs in testing assertions
 
-- [Config] Fix Config ENV defaults clobbering TOML values
+  The `all_enqueued`, `assert_enqueued`, and `refute_enqueued` helpers now include the `suspended`
+  state. This makes it possible to assert on jobs that are enqueued but waiting on something else,
+  e.g. workflow deps.
 
-  `Config.from_env` populated fields with hard-coded defaults, and the dataclass itself defaulted
-  those fields to concrete values rather than None. The merge logic couldn't distinguish a set
-  value from a default, so loading via `Config.load()` silently overrode anything set in toml
-  whenever the corresponding env var was unset.
+- [Worker] Add job timeouts through a worker method
 
-- [Job] Add optional meta field to snooze dataclass
-
-  The new slot allows smuggling additional snooze related data through snooze acking operations.
-
-## v0.6.2 — 2026-04-22
-
-### Enhancements
-
-- [Looper] Introduce a protocol for lifecycle components
-
-  Add a shared Looper protocol describing the start/stop/_loop lifecycle used by background
-  components, and apply it to Stager, Pruner, Scheduler, Refresher, Lifeline, Leader, Metrics, and
-  Producer. This documents the contract explicitly and enables uniform handling of lifecycle
-  loopers.
-
-- [Stager] Include queue in the staging index
-
-  The staging index is now referenced by stage_jobs to filter jobs down to the set of running
-  queues. Adding queue as an INCLUDE column lets that filter apply during the index scan while
-  keeping the (scheduled_at, id) ordering that the LIMIT relies on.
-
-- [Stager] Restrict stage_jobs to active queues
-
-  Previously the `stage_jobs` query transitioned any scheduled or retryable job whose time had
-  come, regardless of whether its queue was running on the node. That let idle queues churn jobs
-  into the available state with nothing around to execute them. Stage only jobs belonging to the
-  running queues passed in by the stager.
+  Workers may define `timeout(self, job)` to limit how long a job runs, in seconds. Jobs exceeding
+  their timeout are cancelled at the next await and fail with a `JobTimeoutError`, then retry with
+  the usual backoff. Timeouts raised by the job itself are left untouched.
 
 ### Bug Fixes
 
-- [Scheduler] Guard scheduler against backward wall-clock steps
+- [Cron] Validate cron range bounds before expanding them
 
-  Track the last evaluated wall-clock minute on the scheduler and skip re-entry when the clock
-  steps backward (NTP adjustment, VM resume) into a minute that was already handled. Prevents
-  duplicate cron inserts without introducing catch-up semantics, so healthy clocks are unaffected.
+  Cron expressions with ranges far outside a field's bounds, such as `0-99999999 * * * *`, are now
+  rejected immediately. Previously the full range was built in memory before validation, which
+  could stall startup or exhaust memory.
 
-## v0.6.1 — 2026-03-17
+- [Leader] Release leadership before notifying on shutdown
 
-### Enhancements
+  Peers could react to the resign notification before the lease was released, lose the election,
+  and wait a full interval before taking over.
 
-- [Pruner] Add extension point for pruner
+- [Oban] Broadcast `start_queue`/`stop_queue` across all nodes
 
-  Apply the `put_ext` extension pattern to the pruner module, allowing customized pruning
-  behavior.
+  Calling `start_queue` or `stop_queue` without a node only changed the local node, despite being
+  documented to act on all nodes. Both now act locally and broadcast, matching `scale_queue`.
 
-### Bug Fixes
+- [Producer] Prevent stale acks from overwriting newer executions
 
-- [Worker] Fix static analysis errors on decorated workers
+  Acking a job now also requires its `attempted_at` to match the execution being acked.
+  Previously, a job that was rescued and fetched again by another node could have its newer
+  execution completed, retried, or snoozed by a late ack from the original run.
 
-  Static analysis tools (pyright, mypy, pylint) previously reported false-positive errors because
-  the `enqueue` and `new` methods were dynamically added at runtime with no type hints.
+- [Producer] Fix shutdown crash when jobs finish while draining
 
-  This introduces a `Worker` Protocol that decorated classes implement, enabling editors and type
-  checkers to provide accurate autocomplete and eliminate "unknown attribute" warnings.
+  Stopping a queue could raise "Set of Tasks/Futures is empty" if the last running jobs completed
+  while the producer was recording its shutdown state.
 
+- [Refresher] Restore producers missing after a database reset
 
-## v0.6.0 — 2026-02-23
+  Producer records live in an unlogged table, which Postgres empties after a crash restart or
+  failover. Previously the refresher only updated existing rows, so producers stayed missing until
+  their queue restarted, and the Pro lifeline repeatedly rescued jobs that were still running. The
+  refresher now re-inserts any missing producer records and reports a `restored_count` in its
+  telemetry.
 
-### Breaking Changes
+- [Stager] Keep notifying queues when staging jobs fails
 
-- [Oban] Change default instance name from "oban" to "Oban"
-
-  The default instance name is changed for simpler compatibility with elixir workers and metric
-  aggregation for the web dashboard.
-
-- [Schema] Change tags field from `jsonb` to `text[]` for compatibility
-
-  This enables inserting jobs from oban-py into tables managed by Oban for Elixir, which uses
-  text[] for tags rather than jsonb.
-
-  Existing `oban-py` created schemas require the following migration:
-
-  ```postgresql
-  CREATE OR REPLACE FUNCTION jsonb_to_text_array(jsonb) RETURNS text[] AS $$
-      SELECT COALESCE(array_agg(x), '{}') FROM jsonb_array_elements_text($1) AS x;
-  $$ LANGUAGE sql IMMUTABLE;
-
-  UPDATE oban_jobs SET tags = '[]'::jsonb WHERE tags IS NULL;
-  ALTER TABLE oban_jobs ALTER COLUMN tags DROP DEFAULT;
-
-  ALTER TABLE oban_jobs
-      ALTER COLUMN tags TYPE text[]
-      USING jsonb_to_text_array(tags);
-
-  ALTER TABLE oban_jobs ALTER COLUMN tags SET DEFAULT '{}';
-
-  DROP FUNCTION jsonb_to_text_array(jsonb);
-  ```
-
-### Enhancements
-
-- [Config] Configure connection pool lifecycle for resilience
-
-  Adds `pool_max_lifetime`, `pool_max_idle` options with sensible defaults to automatically
-  recycle stale database connections. This helps workers recover after database restarts.
-
-- [Metrics] Include the queue producer's `uuid` in checks and metrics
-
-  The uuid is used to determine which jobs are orphans in the web dashboard. Without the correct
-  uuid information, all python jobs look like orphans.
-
-- [Metrics] Add `counts_enabled` flag to disable metric counts
-
-  Counting should only be performed by one node for the same database/schema. With the new
-  `counts_enabled` option, it's possible to disable counting on the python side while still
-  broadcasting other metrics.
-
-- [Metrics] Add telemetry-based job metrics for Oban Web
-
-  Extend metrics broadcasting to include job execution data collected from telemetry events. Each
-  node now reports `exec_time`, `wait_time`, and `exec_count` metrics on the metrics channel,
-  enabling Oban Web to display execution statistics and timing distributions.
-
-  Metrics use DDSketch for timing data (exec_time, wait_time) to support quantile queries, and
-  simple gauges for counts (exec_count).
-
-- [Metrics] Add metrics broadcasting for Oban Web integration
-
-  Enable real-time queue visibility in Oban Web by broadcasting producer state on the gossip
-  channel. When enabled, each node periodically publishes its local queue information including
-  limits, paused status, and running jobs. Disabled by default to avoid pub/sub overhead.
-
-- [Metrics] Broadcast cron entries for schedule display
-
-  Scheduled job entries are broadcast using the "cronitor" format for inclusin in Oban Web's cron
-  page.
-
-- [Metrics] Add full_count metrics with estimate optimization
-
-  Broadcast job counts by state and queue on the metrics channel for Oban Web integration. When
-  counts for any state exceed 50,000, automatically switch to query planner estimates for better
-  performance.
-
-- [Job] Include full traceback in recorded job errors
-
-  Errors persisted to the database now include the complete Python traceback, matching Elixir
-  Oban's behavior. This makes it easier to diagnose failures when you only have database access
-  (e.g. via Oban Web or direct SQL queries).
-
-- [Cron] Log exceptions during failed cron scheduling
-
-  An exception is logged if a scheduld job fails to enqueue for any reason.
-
-- [Schema] Inject `suspended` value into existing `oban_job_state` enum
-
-  Maximize compatibility with elixir based oban schemas by inserting the new `suspended` state
-  after the `scheduled` state.
-
-### Bug Fixes
-
-- [CLI] Optimize cron cron discovery by splitting into two passes
-
-  Split the single grep into two passes:
-
-  1. find files with worker or job decorators
-  2. filter to those also containing cron=
-
-  This handles multi-line decorators correctly with no meaningful performance cost. False
-  positives (files with @worker and an unrelated cron=) are harmless because the module gets
-  imported but no cron schedule is registered.
-
-- [Oban] Fix connection unwrapping for transactional inserts
-
-  Passing SQLAlchemy `AsyncSession` or `AsyncConnection` to the conn parameter of `enqueue()`
-  failed with greenlet errors. The `unwrap_connection` function now correctly extracts the
-  underlying psycopg connection from SQLAlchemy's async adapters.
-
-- [Oban] Safely handle signals without an identifier
-
-  Changed handling so signals (pause, resume, scale, etc.) without an explicit ident are treated
-  as broadcasts to all nodes.
-
-- [Cron] Use deterministic hash for cron entry names
-
-  Replace non-deterministic `hash()` with sha-256 to generate stable, shorter cron names that
-  include expression, worker, and options. Include the name when broadcasting cron entries via
-  metrics.
-
-- [Notifier] Fix notifier reconnection after connection loss
-
-  This improves resilience when databases restart for maintenance or scaling, ensuring the
-  notifier recovers and workers continue receiving insert notifications.
-
-- [Oban] Use `logger.exception` consistently throughout all core classes
-
-  Update looping classes and the cli to use `logger.exception` instead of manual `logger.error`
-  reporting.
+  The stager notifies every local queue when there is a staging error such as a unique conflict.
+  Previously, queues weren't notified after a failed stage, and a queue with no running jobs could
+  leave available jobs unprocessed.
