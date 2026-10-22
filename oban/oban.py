@@ -336,7 +336,6 @@ class Oban:
             await self._dispatcher.start()
 
         tasks = [
-            self._notifier.start(),
             self._leader.start(),
             self._stager.start(),
             self._lifeline.start(),
@@ -356,6 +355,8 @@ class Oban:
         self._signal_token = await self._notifier.listen(
             "signal", self._on_signal, wait=False
         )
+
+        await self._notifier.start()
 
         return self
 

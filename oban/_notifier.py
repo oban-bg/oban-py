@@ -80,7 +80,11 @@ class Notifier(Protocol):
     """
 
     async def start(self) -> None:
-        """Start the notifier and establish necessary connections."""
+        """Start the notifier and establish necessary connections.
+
+        Subscriptions registered with listen() before starting must be established by the time
+        this returns, so no notifications are missed once Oban has started.
+        """
         ...
 
     async def stop(self) -> None:
@@ -95,6 +99,9 @@ class Notifier(Protocol):
         timeout: float | None = None,
     ) -> str:
         """Register a callback for a channel.
+
+        This may be called before start(), in which case the subscription is established when
+        the notifier starts.
 
         Args:
             channel: Channel name to listen on
@@ -186,6 +193,10 @@ class PostgresNotifier:
 
     async def start(self) -> None:
         await self._connect()
+
+        pending = [event.wait() for event in self._listen_events.values()]
+
+        await asyncio.wait_for(asyncio.gather(*pending), timeout=self._connect_timeout)
 
     async def stop(self) -> None:
         if not self._loop_task or not self._beat_task or not self._conn:
