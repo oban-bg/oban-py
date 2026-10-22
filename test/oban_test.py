@@ -513,11 +513,17 @@ class TestStartQueue:
         await oban_1.start()
         await oban_2.start()
 
-        try:
+        async def start_and_check():
+            # Signals are listened for without waiting during startup, so the first broadcast
+            # may arrive before the second node is subscribed.
             await oban_1.start_queue(queue="priority", limit=10)
 
-            await with_backoff(lambda: oban_1.check_queue("priority") is not None)
-            await with_backoff(lambda: oban_2.check_queue("priority") is not None)
+            assert oban_2.check_queue("priority") is not None
+
+        try:
+            await with_backoff(start_and_check)
+
+            assert oban_1.check_queue("priority") is not None
         finally:
             await oban_1.stop()
             await oban_2.stop()

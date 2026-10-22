@@ -11,7 +11,10 @@ async def with_backoff(check_fn, timeout=1.0, interval=0.01):
         try:
             result = check_fn()
             if asyncio.iscoroutine(result):
-                await result
+                result = await result
+
+            assert result is not False
+
             return
         except AssertionError as error:
             last_error = error

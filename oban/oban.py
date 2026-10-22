@@ -1037,7 +1037,8 @@ class Oban:
         """
         if not node or node == self._node:
             await self._start_queue_local(queue=queue, limit=limit, paused=paused)
-        else:
+
+        if node != self._node:
             ident = self._scope_signal(node)
 
             await self._notifier.notify(
@@ -1091,7 +1092,8 @@ class Oban:
         """
         if not node or node == self._node:
             await self._stop_queue_local(queue)
-        else:
+
+        if node != self._node:
             ident = self._scope_signal(node)
 
             await self._notifier.notify(
