@@ -63,6 +63,7 @@ class TestInstallSql:
         assert "isolated.oban_jobs" in sql
         assert "isolated.oban_leaders" in sql
         assert "isolated.oban_producers" in sql
+        assert "isolated.oban_count_estimate" in sql
 
 
 class TestUninstallSql:
@@ -121,3 +122,22 @@ class TestUninstall:
         assert "oban_jobs" not in tables
         assert "oban_leaders" not in tables
         assert "oban_producers" not in tables
+
+    async def test_removes_functions_using_prefix(self, isolated_db):
+        async with isolated_db.connection() as conn:
+            await conn.execute("CREATE SCHEMA IF NOT EXISTS isolated")
+
+        async def function_exists():
+            async with isolated_db.connection() as conn:
+                result = await conn.execute(
+                    "SELECT to_regprocedure('isolated.oban_count_estimate(text, text)')"
+                )
+                (regproc,) = await result.fetchone()
+
+                return regproc is not None
+
+        await install(isolated_db, prefix="isolated")
+        assert await function_exists()
+
+        await uninstall(isolated_db, prefix="isolated")
+        assert not await function_exists()

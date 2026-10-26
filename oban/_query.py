@@ -164,7 +164,7 @@ class Query:
 
         if apply_prefix:
             sql = re.sub(
-                r"\b(oban_insert|oban_job_state|oban_jobs|oban_leaders|oban_producers|oban_state_to_bit)\b",
+                r"\b(oban_count_estimate|oban_insert|oban_job_state|oban_jobs|oban_leaders|oban_producers|oban_state_to_bit)\b",
                 rf"{prefix}.\1",
                 sql,
             )

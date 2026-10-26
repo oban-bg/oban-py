@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS oban_count_estimate(text, text);
 DROP TABLE IF EXISTS oban_producers CASCADE;
 DROP TABLE IF EXISTS oban_leaders CASCADE;
 DROP TABLE IF EXISTS oban_jobs CASCADE;
