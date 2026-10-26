@@ -99,6 +99,17 @@ class TestInstall:
         assert "oban_leaders" in tables
         assert "oban_producers" in tables
 
+    async def test_installing_repeatedly_using_prefix(self, isolated_db):
+        async with isolated_db.connection() as conn:
+            await conn.execute("CREATE SCHEMA IF NOT EXISTS isolated")
+
+        await install(isolated_db, prefix="isolated")
+        await install(isolated_db, prefix="isolated")
+
+        tables = await list_tables(isolated_db, prefix="isolated")
+
+        assert "oban_jobs" in tables
+
 
 class TestUninstall:
     async def test_removes_schema_from_database(self, isolated_db):

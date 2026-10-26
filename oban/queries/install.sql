@@ -2,12 +2,7 @@
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_type t
-        JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'oban_' || 'job' || '_state'
-          AND n.nspname = current_schema()
-    ) THEN
+    IF to_regtype('oban_job_state') IS NULL THEN
         CREATE TYPE oban_job_state AS ENUM (
             'available',
             'scheduled',
@@ -25,12 +20,9 @@ $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'oban_' || 'job' || '_state'
-          AND n.nspname = current_schema()
-          AND e.enumlabel = 'suspended'
+        SELECT 1 FROM pg_enum
+        WHERE enumtypid = 'oban_job_state'::regtype
+          AND enumlabel = 'suspended'
     ) THEN
         ALTER TYPE oban_job_state ADD VALUE 'suspended' AFTER 'scheduled';
     END IF;
