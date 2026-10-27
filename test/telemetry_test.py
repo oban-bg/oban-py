@@ -1,3 +1,5 @@
+import time
+
 from oban import telemetry
 
 
@@ -88,7 +90,7 @@ class TestTelemetrySpan:
 
         assert start_name == "test.operation.start"
         assert start_meta["job_id"] == 123
-        assert "system_time" in start_meta
+        assert abs(start_meta["system_time"] - time.time_ns()) < 1_000_000_000
 
         assert stop_name == "test.operation.stop"
         assert stop_meta["job_id"] == 123

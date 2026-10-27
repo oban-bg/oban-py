@@ -132,7 +132,7 @@ def span(prefix: str, start_metadata: Metadata):
     """
     start_time = time.monotonic_ns()
 
-    execute(f"{prefix}.start", {"system_time": start_time, **start_metadata})
+    execute(f"{prefix}.start", {"system_time": time.time_ns(), **start_metadata})
 
     collector = Collector()
 
@@ -144,7 +144,7 @@ def span(prefix: str, start_metadata: Metadata):
         execute(
             f"{prefix}.stop",
             {
-                "system_time": end_time,
+                "system_time": time.time_ns(),
                 "duration": end_time - start_time,
                 **start_metadata,
                 **collector.get_all(),
@@ -157,7 +157,7 @@ def span(prefix: str, start_metadata: Metadata):
         execute(
             f"{prefix}.exception",
             {
-                "system_time": end_time,
+                "system_time": time.time_ns(),
                 "duration": end_time - start_time,
                 "error_message": str(error),
                 "error_type": type(error).__name__,

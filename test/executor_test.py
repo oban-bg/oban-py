@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -43,6 +44,7 @@ class TestExecutorTelemetry:
 
         assert start_name == "oban.job.start"
         assert start_meta["job"] is job
+        assert abs(start_meta["system_time"] - time.time_ns()) < 1_000_000_000
 
         assert stop_name == "oban.job.stop"
         assert stop_meta["job"] is job

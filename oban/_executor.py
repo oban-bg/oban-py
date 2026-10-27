@@ -97,7 +97,11 @@ class Executor:
     def _report_started(self) -> None:
         telemetry.execute(
             "oban.job.start",
-            {"job": self.job, "monotonic_time": self._start_time},
+            {
+                "job": self.job,
+                "monotonic_time": self._start_time,
+                "system_time": time.time_ns(),
+            },
         )
 
     async def _process(self) -> None:
