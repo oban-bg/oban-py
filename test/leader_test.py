@@ -127,6 +127,17 @@ class TestLeadership:
             assert oban.is_leader
 
     @pytest.mark.oban(leadership=True)
+    async def test_lease_lasts_for_the_election_interval(self, oban_instance):
+        async with oban_instance() as oban:
+            async with oban._connection() as conn:
+                result = await conn.execute(
+                    "SELECT extract(epoch FROM expires_at - elected_at) FROM oban_leaders"
+                )
+                (ttl,) = await result.fetchone()
+
+            assert ttl == oban._leader._interval
+
+    @pytest.mark.oban(leadership=True)
     async def test_conceding_leadership_after_takeover(self, oban_instance):
         async with oban_instance() as oban:
             assert oban.is_leader

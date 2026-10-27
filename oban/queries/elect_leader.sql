@@ -3,7 +3,7 @@ VALUES (
   %(name)s,
   %(node)s,
   timezone('UTC', now()),
-  timezone('UTC', now()) + interval '%(ttl)s seconds'
+  timezone('UTC', now()) + make_interval(secs => %(ttl)s)
 )
 ON CONFLICT (name) DO UPDATE SET
   expires_at = EXCLUDED.expires_at
