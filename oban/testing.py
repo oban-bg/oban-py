@@ -41,9 +41,7 @@ def mode(testing_mode: str):
     Example:
         >>> import oban.testing
         >>>
-        >>> oban.testing.set_mode("manual")
-        >>>
-        >>> def test_inline_execution():
+        >>> async def test_inline_execution():
         ...     with oban.testing.mode("inline"):
         ...         # Jobs execute immediately in this context
         ...         await EmailWorker.enqueue({"to": "user@example.com"})
