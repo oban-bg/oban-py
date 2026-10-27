@@ -22,13 +22,16 @@ updated_jobs AS (
     locked_jobs
   WHERE
     oban_jobs.id = locked_jobs.id
+  RETURNING
+    oban_jobs.queue
 )
 SELECT DISTINCT
   q.queue
 FROM
   unnest(%(queues)s::text[]) AS q(queue)
 WHERE
-  EXISTS (
+  q.queue IN (SELECT queue FROM updated_jobs)
+  OR EXISTS (
     SELECT 1
     FROM oban_jobs
     WHERE state = 'available' AND queue = q.queue
