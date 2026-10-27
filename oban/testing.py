@@ -341,18 +341,21 @@ async def drain_queue(
             before = datetime.now(UTC) + FAR_FUTURE
             await oban._query.stage_jobs(limit=1000, queues=[queue], before=before)
 
-        match await oban._query.fetch_jobs(
-            demand=1, queue=queue, node="drain", uuid="drain"
-        ):
-            case []:
-                break
-            case [job]:
-                executor = await Executor(job=job, safe=with_safety).execute()
+        demand = 1 if with_recursion else None
+        jobs = await oban._query.fetch_jobs(
+            demand=demand, queue=queue, node="drain", uuid="drain"
+        )
 
-                if executor.action is not None:
-                    await oban._query.ack_jobs([executor.action])
+        if not jobs:
+            break
 
-                    summary[executor.action.state] += 1
+        for job in jobs:
+            executor = await Executor(job=job, safe=with_safety).execute()
+
+            if executor.action is not None:
+                await oban._query.ack_jobs([executor.action])
+
+                summary[executor.action.state] += 1
 
         if not with_recursion:
             break

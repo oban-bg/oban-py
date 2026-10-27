@@ -268,7 +268,7 @@ class Query:
                 return await cur.fetchone()
 
     async def fetch_jobs(
-        self, demand: int, queue: str, node: str, uuid: str
+        self, demand: int | None, queue: str, node: str, uuid: str
     ) -> list[Job]:
         async with self._pool.connection() as conn, conn.transaction():
             stmt = self._load_file("fetch_jobs.sql", self._prefix)

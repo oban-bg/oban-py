@@ -469,6 +469,4 @@ class TestDrainQueue:
 
         result = await drain_queue(queue="default", with_recursion=False)
 
-        assert result["completed"] == 1
-
-        await assert_enqueued(queue="default")
+        assert result["completed"] == 2
