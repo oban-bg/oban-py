@@ -320,9 +320,10 @@ class Query:
 
             result = await conn.execute(stmt, args)
             rows = await result.fetchall()
-            queues = [queue for (queue,) in rows]
+            queues = [queue for (queue, _) in rows]
+            staged = rows[0][1] if rows else 0
 
-            return (len(rows), queues)
+            return (staged, queues)
 
     async def update_many_jobs(self, jobs: list[Job]) -> list[Job]:
         async with self._pool.connection() as conn, conn.transaction():

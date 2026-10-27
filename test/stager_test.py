@@ -96,12 +96,14 @@ class TestStaging:
         await stager._stage()
 
     @pytest.mark.oban(queues={})
-    async def test_reports_queues_with_newly_staged_jobs(self, oban_instance):
+    async def test_reports_staged_count_and_queues(self, oban_instance):
         async with oban_instance() as oban:
             past = datetime.now(UTC) - timedelta(seconds=1)
 
             await oban.enqueue(Job(worker="Worker", queue="alpha", scheduled_at=past))
+            await oban.enqueue(Job(worker="Worker", queue="alpha", scheduled_at=past))
 
-            (_, queues) = await oban._query.stage_jobs(10, ["alpha", "omega"])
+            (staged, queues) = await oban._query.stage_jobs(10, ["alpha", "omega"])
 
+            assert staged == 2
             assert queues == ["alpha"]

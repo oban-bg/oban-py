@@ -26,7 +26,8 @@ updated_jobs AS (
     oban_jobs.queue
 )
 SELECT DISTINCT
-  q.queue
+  q.queue,
+  (SELECT count(*) FROM updated_jobs)::integer AS staged_count
 FROM
   unnest(%(queues)s::text[]) AS q(queue)
 WHERE
