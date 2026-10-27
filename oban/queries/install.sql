@@ -21,7 +21,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_enum
-        WHERE enumtypid = 'oban_job_state'::regtype
+        WHERE enumtypid = to_regtype('oban_job_state')
           AND enumlabel = 'suspended'
     ) THEN
         ALTER TYPE oban_job_state ADD VALUE 'suspended' AFTER 'scheduled';
