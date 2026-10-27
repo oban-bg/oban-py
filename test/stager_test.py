@@ -48,7 +48,13 @@ class TestStagerStop:
 
                 return (0, [])
 
-        stager = Stager(query=SlowQuery(), notifier=None, producers={})
+        class Producer:
+            def notify(self):
+                pass
+
+        stager = Stager(
+            query=SlowQuery(), notifier=None, producers={"default": Producer()}
+        )
         stager._loop_task = asyncio.create_task(stager._loop())
 
         await asyncio.sleep(0)
@@ -80,6 +86,15 @@ class TestStagerFailure:
 
 
 class TestStaging:
+    async def test_skips_staging_without_producers(self):
+        class UnusedQuery:
+            async def stage_jobs(self, limit, queues):
+                raise AssertionError("staged without producers")
+
+        stager = Stager(query=UnusedQuery(), notifier=None, producers={})
+
+        await stager._stage()
+
     @pytest.mark.oban(queues={})
     async def test_reports_queues_with_newly_staged_jobs(self, oban_instance):
         async with oban_instance() as oban:
