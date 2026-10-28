@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-light.png">
-    <img alt="Oban logo" src="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-logotype-light.png" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-py-logotype-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-py-logotype-light.png">
+    <img alt="Oban logo" src="https://raw.githubusercontent.com/oban-bg/oban-py/refs/heads/main/docs/_static/oban-py-logotype-light.png" width="320">
   </picture>
 </p>
 
