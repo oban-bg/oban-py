@@ -404,6 +404,7 @@ class Scheduler(Looper):
         job = entry.worker_cls.new()  # ty: ignore[unresolved-attribute]
 
         job.meta = {
+            **job.meta,
             "cron": True,
             "cron_at": cron_at,
             "cron_expr": entry.expression.input,

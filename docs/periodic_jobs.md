@@ -66,8 +66,8 @@ elsewhere.
 ### Periodic Job Args
 
 Periodic jobs are inserted without args, and use the worker's defaults for options such as
-`queue`, `priority`, and `max_attempts`. Each job's meta records that it came from the scheduler,
-along with the time it was scheduled for:
+`queue`, `priority`, and `max_attempts`. Scheduling details are merged into the worker's default
+meta, recording that the job came from the scheduler and the time it was scheduled for:
 
 ```python
 @worker(queue="reports", cron="@daily")

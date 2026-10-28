@@ -58,6 +58,7 @@ Configure default behavior with decorator parameters:
     priority=0,  # 0 = highest priority
     max_attempts=5,  # Retry up to 5 times
     tags=["payment", "v2"],  # Default tags
+    meta={"team": "billing"},  # Default metadata
 )
 class PaymentWorker:
     async def process(self, job):
