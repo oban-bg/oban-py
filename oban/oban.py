@@ -715,8 +715,9 @@ class Oban:
         This function accepts either a job instance or id, along with either a dict of
         changes or a callable that receives the job and returns a dict of changes.
 
-        The update operation is wrapped in a transaction with a locking clause to
-        prevent concurrent modifications.
+        Jobs are fetched and locked within a transaction before changes are applied, so a
+        callable always receives current values, even when given a stale job instance. The
+        instance passed in isn't modified, use the returned job for current values.
 
         Fields and Validations:
             All changes are validated using the same validations as `Job()`. Only the
@@ -732,10 +733,11 @@ class Oban:
             - worker
 
         Warning:
-            Use caution when updating jobs that are currently executing. Modifying fields
-            like args, queue, or worker while a job is running may lead to unexpected
-            behavior or inconsistent state. Consider whether the job should be cancelled
-            first, or if the update should be deferred until after execution completes.
+            Use caution when updating jobs that are currently executing. The running attempt
+            keeps the values it started with, and changes only apply to future attempts. If
+            the attempt fails or snoozes, its new scheduled_at replaces any updated value.
+            Consider whether the job should be cancelled first, or if the update should be
+            deferred until after execution completes.
 
         Args:
             job: A Job instance or job ID to update
@@ -743,7 +745,7 @@ class Oban:
                      and returns a dict of changes
 
         Returns:
-            The updated job with all current field values
+            A new job instance with all current field values
 
         Example:
             Update a job with a dict of changes:
@@ -781,8 +783,9 @@ class Oban:
         This function accepts a list of job instances or ids, along with either a dict of
         changes or a callable that receives each job and returns a dict of changes.
 
-        The update operation is wrapped in a transaction with a locking clause to
-        prevent concurrent modifications.
+        Jobs are fetched and locked within a transaction before changes are applied, so a
+        callable always receives current values, even when given a stale job instance. The
+        instance passed in isn't modified, use the returned job for current values.
 
         Fields and Validations:
             All changes are validated using the same validations as Job(). Only the
@@ -798,10 +801,11 @@ class Oban:
             - worker
 
         Warning:
-            Use caution when updating jobs that are currently executing. Modifying fields
-            like args, queue, or worker while a job is running may lead to unexpected
-            behavior or inconsistent state. Consider whether the job should be cancelled
-            first, or if the update should be deferred until after execution completes.
+            Use caution when updating jobs that are currently executing. The running attempt
+            keeps the values it started with, and changes only apply to future attempts. If
+            the attempt fails or snoozes, its new scheduled_at replaces any updated value.
+            Consider whether the job should be cancelled first, or if the update should be
+            deferred until after execution completes.
 
         Args:
             jobs: List of Job instances or job IDs to update
@@ -809,7 +813,7 @@ class Oban:
                      and returns a dict of changes
 
         Returns:
-            The updated jobs with all current field values
+            New job instances with all current field values, in the order given
 
         Example:
             Update multiple jobs with a dict of changes:
@@ -827,28 +831,9 @@ class Oban:
             ...     lambda job: {"tags": ["retry"] + job.tags}
             ... )
         """
-        instances = []
+        job_ids = [job.id if isinstance(job, Job) else job for job in jobs]
 
-        for job in jobs:
-            if isinstance(job, Job):
-                instances.append(job)
-            else:
-                fetched = await self._query.get_job(job)
-
-                if fetched is None:
-                    raise ValueError(f"Job with id {job} not found")
-
-                instances.append(fetched)
-
-        # This isn't optimized for small updates, as we're re-sending values that haven't changed
-        # and we're also not combining fetching and updating in a single transaction. This works
-        # well enough for an infrequently used method.
-        updated = [
-            job.update(changes.copy() if isinstance(changes, dict) else changes(job))
-            for job in instances
-        ]
-
-        return await self._query.update_many_jobs(updated)
+        return await self._query.update_many_jobs(job_ids, changes)
 
     async def pause_queue(self, queue: str, *, node: str | None = None) -> None:
         """Pause a queue, preventing it from executing new jobs.

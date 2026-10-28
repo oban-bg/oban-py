@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import cache
@@ -325,8 +325,31 @@ class Query:
 
             return (staged, queues)
 
-    async def update_many_jobs(self, jobs: list[Job]) -> list[Job]:
+    async def update_many_jobs(
+        self,
+        job_ids: list[int | None],
+        changes: dict[str, Any] | Callable[[Job], dict[str, Any]],
+    ) -> list[Job]:
         async with self._pool.connection() as conn, conn.transaction():
+            lock_stmt = self._load_file("lock_jobs.sql", self._prefix)
+
+            async with conn.cursor(row_factory=class_row(Job)) as cur:
+                await cur.execute(lock_stmt, (job_ids,))
+
+                locked = {job.id: job for job in await cur.fetchall()}
+
+            jobs = []
+
+            for job_id in job_ids:
+                if job_id not in locked:
+                    raise ValueError(f"Job with id {job_id} not found")
+
+                job = locked[job_id]
+                job.update(
+                    changes.copy() if isinstance(changes, dict) else changes(job)
+                )
+                jobs.append(job)
+
             stmt = self._load_file("update_job.sql", self._prefix)
 
             for job in jobs:

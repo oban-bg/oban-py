@@ -744,6 +744,9 @@ class TestUpdateManyJob:
             job_1 = await Worker.enqueue({"ref": 1}, priority=5, tags=["original"])
             job_2 = await Worker.enqueue({"ref": 2}, priority=5, tags=[])
 
+            # Make the job_1 instance stale
+            await oban.update_job(job_1.id, {"tags": ["fresh"]})
+
             updated = await oban.update_many_jobs(
                 [job_1, job_2.id],
                 lambda job: {"tags": ["updated"] + job.tags, "priority": 0},
@@ -751,7 +754,8 @@ class TestUpdateManyJob:
 
             assert len(updated) == 2
             assert updated[0].priority == 0
-            assert updated[0].tags == ["original", "updated"]
+            assert updated[0].tags == ["fresh", "updated"]
+            assert job_1.priority == 5
             assert updated[1].priority == 0
             assert updated[1].tags == ["updated"]
 

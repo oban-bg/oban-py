@@ -106,11 +106,15 @@ Updating lets you modify a job's fields after insertion. Common use cases includ
 To update a job:
 
 ```python
-await oban.update_job(job, {"priority": 0, "tags": ["urgent"]})
+job = await oban.update_job(job, {"priority": 0, "tags": ["urgent"]})
 
 # Or by job ID
-await oban.update_job(123, {"queue": "critical"})
+job = await oban.update_job(123, {"queue": "critical"})
 ```
+
+Jobs are fetched and locked within a transaction before any changes are applied, so updates always
+build on current values, even when given a stale job instance. The job you pass in isn't modified,
+so use the returned job to see the updated values.
 
 The following fields can be updated:
 
@@ -134,8 +138,8 @@ await oban.update_job(job, {"scheduled_in": 0})
 
 ### Dynamic Updates with Callables
 
-For updates that depend on the current job state, pass a callable that receives the job and
-returns a dict of changes:
+For updates that depend on the current job state, pass a callable that receives the locked job
+and returns a dict of changes:
 
 ```python
 # Append to existing tags
@@ -162,7 +166,8 @@ jobs = await oban.update_many_jobs(
 ```
 
 ```{warning}
-Use caution when updating jobs that are currently executing. Modifying fields like `args`,
-`queue`, or `worker` while a job is running may lead to unexpected behavior. Consider cancelling
-the job first, or deferring the update until after execution completes.
+Use caution when updating jobs that are currently executing. The running attempt keeps the values
+it started with, so changes only apply to future attempts. If the attempt fails or snoozes, its new
+`scheduled_at` replaces any updated value. Consider cancelling the job first, or deferring the
+update until after execution completes.
 ```
