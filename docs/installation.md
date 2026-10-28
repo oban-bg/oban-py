@@ -1,6 +1,6 @@
 # Installation
 
-Oban requires Python 3.12+ and PostgreSQL 12.0+. Ensure both are available and that PostgreSQL is
+Oban requires Python 3.12+ and PostgreSQL 14.0+. Ensure both are available and that PostgreSQL is
 running before installation.
 
 ## Installing the Package

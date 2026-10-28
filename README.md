@@ -112,7 +112,13 @@ without worrying about jobs being lost or orphaned due to crashes.
   shutdown. When shutdown starts queues are paused and stop executing new jobs. Any jobs left
   running after the shutdown grace period may be rescued later.
 
-- **Telemetry Integration** — Job life-cycle events are emitted via Telemetry integration.
+- **Recorded Results** — Return a `Record` from a worker to store its result on the job for later
+  retrieval.
+
+- **Testing Helpers** — Run jobs inline or manually during tests, assert on enqueued jobs, and
+  drain queues on demand.
+
+- **Telemetry Integration** — Job and queue life-cycle events are emitted through `oban.telemetry`.
   This enables simple logging, error reporting and health checkups without plug-ins.
 
 - **Web Dashboard** — Monitor queues, inspect jobs, and view execution metrics through
@@ -124,20 +130,36 @@ without worrying about jobs being lost or orphaned due to crashes.
 Oban Pro is a licensed add-on that expands what Oban is capable of while making complex workflows
 possible.
 
-- **Optimizations** — Switch to Pro for automatic bulk inserts, bulk acking, and
-  accurate orphan rescue.
+- **Drop-In Optimizations** — Switch to Pro for automatic bulk inserts, bulk acking, and
+  accurate orphan rescue, with no code changes required.
 
 - **Multi-Process Execution** — Bypass the GIL and utilize multiple cores for CPU-intensive
   workloads. Just switch from `oban start` to `obanpro start`.
 
+- **Erlang Notifier** — Replace Postgres pub/sub with direct communication between processes.
+  Works through transaction poolers, without a payload size limit, and keeps notifications out of
+  the database.
+
 - **Smart Concurrency** — Global limits across all nodes, rate limiting (e.g., 60 jobs/minute),
   and partitioned queues that apply limits per worker, tenant, or any argument.
 
-- **Workflows** — Compose jobs with dependencies for sequential, fan-out, and fan-in patterns.
-  Sub-workflows, cascading functions, and runtime grafting for dynamic pipelines.
+- **Pro Pruner** — Fine-grained retention rules per queue, worker, or state. Prune on a cron
+  schedule, manage rules at runtime, and archive jobs rather than deleting them.
 
-- **Unique Jobs** — Prevent enqueueing duplicate jobs based on configurable fields and time
-  windows.
+- **Unique Jobs** — Prevent enqueueing duplicate jobs based on worker, args, queue, or specific
+  keys, with configurable time windows.
+
+- **Relay** — Dispatch jobs and await their results with synchronous-style semantics, even when
+  jobs execute on different servers.
+
+- **Awaiting Signals** — Pause a job mid-execution to wait for an external decision, then resume
+  when a signal arrives. Ideal for approval flows and third-party callbacks.
+
+- **Durable Workflows** — Compose jobs with dependencies for sequential, fan-out, and fan-in patterns.
+  Sub-workflows, result sharing, cascading functions, and runtime grafting for dynamic pipelines.
+
+- **Chunks** — Process jobs together in groups by size or wait time, e.g. 1,000 jobs or every 10
+  seconds, and apply outcomes to individual jobs.
 
 [Learn more about Oban Pro →](https://oban.pro)
 
@@ -155,38 +177,24 @@ application.
 
 ## Quick Start
 
-Get up and running in just a few steps: define a worker (or decorate a function), enqueue jobs,
-and start processing with the CLI (or embedded mode).
+Get up and running in just a few steps: define a worker (or decorate a function), start processing
+with the CLI (or embedded mode), and enqueue jobs.
 
 1. Define a worker to process jobs:
 
    ```python
-   from oban import worker, Snooze, Cancel
+   from oban import worker
 
 
    @worker(queue="exports", max_attempts=5)
    class ExportWorker:
        async def process(self, job):
-           # Check if user cancelled their export request
-           if job.cancelled():
-               return Cancel("Export cancelled by user")
-
            report = await generate_report(job.args["report_id"])
-
-           # Not ready? Check again in 30 seconds (doesn't count as a failure)
-           if report.status == "pending":
-               return Snooze(seconds=30)
 
            await send_to_user(job.args["email"], report)
    ```
 
-2. Enqueue jobs from anywhere in your app:
-
-   ```python
-   await ExportWorker.enqueue({"report_id": 123, "email": "user@example.com"})
-   ```
-
-3. Run with the CLI:
+2. Run with the CLI:
 
    ```bash
    # Install the database schema (once)
@@ -205,6 +213,19 @@ and start processing with the CLI (or embedded mode).
 
    async with oban:
        ...  # Run your app
+   ```
+
+3. Enqueue jobs from anywhere in your app:
+
+   ```python
+   # Enqueue one job
+   await ExportWorker.enqueue({"report_id": 123, "email": "user@example.com"})
+
+   # Or many jobs at once
+   await oban.enqueue_many(
+       ExportWorker.new({"report_id": report_id, "email": "user@example.com"})
+       for report_id in [1, 2, 3]
+   )
    ```
 
 For more details, see the [full documentation][docs].

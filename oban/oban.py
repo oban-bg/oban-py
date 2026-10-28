@@ -455,10 +455,11 @@ class Oban:
         *rest: Job,
         conn: ConnectionLike = None,
     ) -> list[Job]:
-        """Insert multiple jobs into the database in a single operation.
+        """Insert multiple jobs into the database at once.
 
-        This is more efficient than calling enqueue() multiple times as it uses a
-        single database query to insert all jobs.
+        All jobs are inserted using a single database connection, rather than checking out a
+        connection for each job. With Oban Pro, jobs are bulk inserted in a single optimized
+        operation for even higher throughput.
 
         Args:
             jobs_or_first: Either an iterable of jobs, or the first job when using
