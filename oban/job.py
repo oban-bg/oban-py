@@ -92,7 +92,7 @@ class Record:
     with Oban Pro.
 
     Args:
-        value: The value to record. Must be serializable by erlpack.
+        value: The value to record. Must be encodable as an Erlang term.
         limit: Maximum size in bytes for the encoded value. Defaults to 64MB.
 
     Raises:

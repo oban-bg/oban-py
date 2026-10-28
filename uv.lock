@@ -142,15 +142,6 @@ wheels = [
 ]
 
 [[package]]
-name = "erlpack"
-version = "1.0.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/80/08/d8f198809cd623bb5e0258c00ff31d1ac063fdc0982084cb7b83e63c27f3/erlpack-1.0.1.tar.gz", hash = "sha256:3bfa63db0ebe1171866287474ade3a899cdf6df14fbc8e400aef91777258ff85", size = 191587, upload-time = "2025-01-31T00:19:58.981Z" }
-
-[[package]]
 name = "greenlet"
 version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -375,7 +366,6 @@ version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
-    { name = "erlpack" },
     { name = "orjson" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
@@ -403,7 +393,6 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
-    { name = "erlpack", specifier = ">=1.0.0" },
     { name = "orjson", specifier = ">=3.11.6" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.13" },
     { name = "psycopg-pool", specifier = ">=3.2.6" },
@@ -747,15 +736,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/e8/1e186578076aff7a80735f625005fde678412ab609cd323ed182eb7d6b87/ruff-0.17.1-py3-none-win32.whl", hash = "sha256:1de0030a8aa78c65c5fecb84b2e5c390ac684c0452875a02afc7c083d49a496a", size = 9895093, upload-time = "2026-10-15T15:23:10.582Z" },
     { url = "https://files.pythonhosted.org/packages/6a/2e/da3d9589bae8e8b58f3a48bd5bc0b980232fb14a83bf02c3be7660f87c1b/ruff-0.17.1-py3-none-win_amd64.whl", hash = "sha256:5df76f16580fab58d0f6c98a3ac254a4abceb7b2489b8b678335869cff77b3d7", size = 10097955, upload-time = "2026-10-15T15:23:13.309Z" },
     { url = "https://files.pythonhosted.org/packages/df/c9/0f2a4dea06a5e12c1191ee3d96b1e1233797d0d5e18f97a2b909a95a9836/ruff-0.17.1-py3-none-win_arm64.whl", hash = "sha256:42400b9a6ff8515ff27796f07f92e0195be011c86e81e381606f58ea5502fef4", size = 9853542, upload-time = "2026-10-15T15:23:16.05Z" },
-]
-
-[[package]]
-name = "six"
-version = "1.17.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
 
 [[package]]
