@@ -57,6 +57,26 @@ inserts jobs according to the schedule you define. When the time comes for a job
 Jobs are always inserted by the leader node in a cluster, which prevents duplicate jobs regardless
 of cluster size, restarts, or crashes.
 
+```{note}
+By default, only instances that run queues take part in leadership. At least one node must be
+processing jobs for periodic jobs to be inserted, even if they're destined for queues that run
+elsewhere.
+```
+
+### Periodic Job Args
+
+Periodic jobs are inserted without args, and use the worker's defaults for options such as
+`queue`, `priority`, and `max_attempts`. Each job's meta records that it came from the scheduler,
+along with the time it was scheduled for:
+
+```python
+@worker(queue="reports", cron="@daily")
+class DailyReport:
+    async def process(self, job):
+        if job.meta.get("cron"):
+            print(f"Generating report scheduled for {job.meta['cron_at']}")
+```
+
 ## Cron Expressions
 
 Standard cron expressions consist of five fields that specify when the job should run:
@@ -66,7 +86,7 @@ Standard cron expressions consist of five fields that specify when the job shoul
 │ ┌───────────── hour (0 - 23)
 │ │ ┌───────────── day of the month (1 - 31)
 │ │ │ ┌───────────── month (1 - 12 or JAN-DEC)
-│ │ │ │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
+│ │ │ │ ┌───────────── day of the week (0 - 7 or SUN-SAT)
 │ │ │ │ │
 │ │ │ │ │
 * * * * *
@@ -90,7 +110,10 @@ each field are as follows:
 | `hour`     | 0-23                                         |
 | `days`     | 1-31                                         |
 | `month`    | 1-12 (or aliases, `JAN`, `FEB`, `MAR`, etc.) |
-| `weekdays` | 0-6 (or aliases, `SUN`, `MON`, `TUE`, etc.)  |
+| `weekdays` | 0-7 (or aliases, `SUN`, `MON`, `TUE`, etc.)  |
+
+Month and weekday aliases are case-sensitive and must be uppercase, e.g. `MON` rather than `mon`.
+Both `0` and `7` mean Sunday for weekdays.
 
 ```{tip}
 Cron syntax can be difficult to write and read. We recommend using a tool like
