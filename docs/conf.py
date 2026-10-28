@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # -- Project information -----------------------------------------------------
 
-project = "oban"
+project = "Oban"
 author = "Soren LLC"
 copyright = f"2025 {author}"
 
@@ -39,6 +39,7 @@ exclude_patterns = [".DS_Store"]
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "sphinx_book_theme"
+html_title = "Oban for Python"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_logo = "_static/oban-logo.svg"
