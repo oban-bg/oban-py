@@ -113,10 +113,10 @@ class Stager(Looper):
         pass
 
     async def _stage(self) -> None:
-        await use_ext("stager.before_stage", self._noop, self._query)
-
         if not self._producers:
             return
+
+        await use_ext("stager.before_stage", self._noop, self._query)
 
         with telemetry.span("oban.stager.stage", {}) as context:
             queues = list(self._producers.keys())

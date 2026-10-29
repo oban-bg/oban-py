@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from oban import Job
+from oban._extensions import _extensions
 from oban._stager import Stager
 
 
@@ -86,10 +87,15 @@ class TestStagerFailure:
 
 
 class TestStaging:
-    async def test_skips_staging_without_producers(self):
+    async def test_skips_staging_without_producers(self, monkeypatch):
         class UnusedQuery:
             async def stage_jobs(self, limit, queues):
                 raise AssertionError("staged without producers")
+
+        async def before_stage(_query):
+            raise AssertionError("ran before_stage without producers")
+
+        monkeypatch.setitem(_extensions, "stager.before_stage", before_stage)
 
         stager = Stager(query=UnusedQuery(), notifier=None, producers={})
 
