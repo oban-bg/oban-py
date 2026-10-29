@@ -521,6 +521,20 @@ class TestStartQueue:
             await oban_1.stop()
             await oban_2.stop()
 
+    async def test_starting_queue_from_an_elixir_signal(self, oban_instance):
+        async with oban_instance() as oban:
+            payload = {
+                "action": "start",
+                "queue": "elixir",
+                "limit": 2,
+                "node": "elixir@host",
+                "local_only": True,
+            }
+
+            await oban._on_signal("signal", payload)
+
+            assert oban.check_queue("elixir").meta == {}
+
     async def test_starting_queue_with_invalid_limit(self, oban_instance):
         async with oban_instance() as oban:
             with pytest.raises(ValueError, match="limit must be positive"):

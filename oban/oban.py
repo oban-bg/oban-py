@@ -1158,6 +1158,10 @@ class Oban:
         if ident != "any" and ident != f"{self._name}.{self._node}":
             return
 
+        # Signals from Elixir also carry the options that targeted them, which aren't queue options
+        payload.pop("node", None)
+        payload.pop("local_only", None)
+
         match payload.pop("action"):
             case "start":
                 await self._start_queue_local(**payload)
