@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from oban import Job, telemetry, worker
+from oban import Cancel, Job, telemetry, worker
 from oban._producer import LocalDispatcher, Producer
 
 
@@ -156,6 +156,35 @@ class TestProducerAcks:
             fetched = await oban.get_job(job.id)
             assert fetched is not None
             assert fetched.state == "executing"
+
+    @pytest.mark.oban(queues={"default": 1})
+    async def test_cancel_ack_records_error_for_cancelled_job(self, oban_instance):
+        finished = asyncio.Event()
+
+        async with oban_instance() as oban:
+
+            @worker()
+            class CancelledWorker:
+                async def process(self, job):
+                    async with oban._connection() as conn:
+                        await conn.execute(
+                            "UPDATE oban_jobs SET state = 'cancelled' WHERE id = %s",
+                            (job.id,),
+                        )
+
+                    finished.set()
+
+                    return Cancel("cancelled elsewhere")
+
+            job = await oban.enqueue(CancelledWorker.new())
+
+            await asyncio.wait_for(finished.wait(), timeout=1.0)
+            await asyncio.sleep(0.1)
+
+            fetched = await oban.get_job(job.id)
+            assert fetched is not None
+            assert fetched.state == "cancelled"
+            assert len(fetched.errors) == 1
 
 
 class TestProducerShutdown:
