@@ -28,6 +28,12 @@ class TestEncodeDecode:
 
         assert decoded == payload
 
+    def test_decode_payload_prefixed_compression(self):
+        payload = {"queue": "default", "id": 789}
+        encoded = "Z:" + encode_payload(payload)
+
+        assert decode_payload(encoded) == payload
+
 
 class TestBuildNotifier:
     async def test_building_with_options(self, oban_instance):

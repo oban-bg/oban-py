@@ -39,7 +39,8 @@ def encode_payload(payload: dict) -> str:
 def decode_payload(payload: str) -> dict:
     """Decode a payload string to a dict.
 
-    Handles both compressed (base64+gzip) and plain JSON payloads.
+    Handles plain JSON, compressed (base64+gzip), and prefixed compressed ("Z:" + base64+gzip)
+    payloads.
 
     Args:
         payload: Payload string to decode
@@ -51,7 +52,8 @@ def decode_payload(payload: str) -> dict:
     if payload.startswith("{"):
         return orjson.loads(payload)
     else:
-        decoded = base64.b64decode(payload)
+        # Elixir prefixes compressed payloads with "Z:"
+        decoded = base64.b64decode(payload.removeprefix("Z:"))
         unzipped = gzip.decompress(decoded)
 
         return orjson.loads(unzipped.decode("utf-8"))
