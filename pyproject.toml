@@ -56,6 +56,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "pytest-benchmark>=5.2.3",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.17.1",
     "sqlalchemy[asyncio]>=2.0.0",
     "ty>=0.0.88",
@@ -98,4 +99,4 @@ markers = [
     "oban: configure Oban instance options for a test",
     "benchmark: mark test as a benchmark (deselect with '-m \"not benchmark\"')",
 ]
-addopts = "-m 'not benchmark'"
+addopts = "-m 'not benchmark' --benchmark-skip"

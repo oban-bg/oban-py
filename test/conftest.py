@@ -1,11 +1,13 @@
 import os
 
+import psycopg
 import pytest
 import pytest_asyncio
 import uvloop
 
 from oban import Oban
 from oban._config import Config
+from oban.schema import install_sql
 from oban.testing import reset_oban
 
 
@@ -19,8 +21,24 @@ def dsn_base():
 
 
 @pytest.fixture(scope="session")
-def test_dsn(dsn_base):
-    return f"{dsn_base}/oban_py_test"
+def test_dsn(dsn_base, worker_id):
+    if worker_id == "master":
+        yield f"{dsn_base}/oban_py_test"
+        return
+
+    name = f"oban_py_test_{worker_id}"
+
+    with psycopg.connect(f"{dsn_base}/postgres", autocommit=True) as conn:
+        conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
+        conn.execute(f'CREATE DATABASE "{name}"')
+
+    with psycopg.connect(f"{dsn_base}/{name}", autocommit=True) as conn:
+        conn.execute(install_sql())
+
+    yield f"{dsn_base}/{name}"
+
+    with psycopg.connect(f"{dsn_base}/postgres", autocommit=True) as conn:
+        conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
 
 
 @pytest_asyncio.fixture

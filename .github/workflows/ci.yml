@@ -90,7 +90,7 @@ jobs:
       - name: Run tests
         env:
           DSN_BASE: postgresql://postgres:postgres@localhost:5432
-        run: uv run pytest
+        run: uv run pytest -n 4
 
       - name: Tear down database
         env:

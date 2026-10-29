@@ -64,7 +64,7 @@ endif
 	@awk -v heading="## v$(VERSION) " 'index($$0, "## v") == 1 { found = index($$0, heading) == 1; next } found' CHANGELOG.md
 
 test:
-	uv run pytest -s
+	uv run pytest -n 4
 
 bench:
 	uv run pytest -m benchmark --benchmark-only

@@ -27,8 +27,8 @@ async def list_tables(pool, prefix="public"):
 
 
 @pytest_asyncio.fixture
-async def isolated_db(postgres_conn, dsn_base):
-    test_db = "oban_schema_test_temp"
+async def isolated_db(postgres_conn, dsn_base, worker_id):
+    test_db = f"oban_schema_test_{worker_id}"
 
     with postgres_conn() as conn:
         conn.execute(f'DROP DATABASE IF EXISTS "{test_db}"')

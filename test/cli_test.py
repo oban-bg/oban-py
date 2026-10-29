@@ -13,8 +13,8 @@ def runner():
 
 
 @pytest.fixture
-def dsn(test_dsn, dsn_base):
-    name = "oban_cli_test"
+def dsn(dsn_base, worker_id):
+    name = f"oban_cli_test_{worker_id}"
 
     with psycopg.connect(f"{dsn_base}/postgres", autocommit=True) as conn:
         conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
