@@ -22,7 +22,7 @@ help:
 	@echo "  docs-serve   - Serve documentation locally on port 8000"
 	@echo "  fix          - Fix linting issues automatically"
 	@echo "  format       - Format code with ruff"
-	@echo "  precommit    - Run pre-commit checks (alias for check)"
+	@echo "  precommit    - Run pre-commit checks (alias for ci)"
 	@echo "  release      - Build and publish a release (requires VERSION=x.y.z)"
 	@echo "  release-notes - Print CHANGELOG notes for a release (requires VERSION=x.y.z)"
 	@echo "  test         - Run tests with pytest"
@@ -32,7 +32,7 @@ check:
 	uv run ruff check .
 	uv run ty check
 
-precommit: check
+precommit: ci
 
 ci: check test
 
