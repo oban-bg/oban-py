@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from oban import job, worker
+from oban._extensions import _extensions, put_ext
 from oban.testing import process_job
 
 
@@ -49,6 +50,25 @@ class TestWorkerDecorator:
         job = DailyWorker.new({})
 
         assert job.queue == "cleanup"
+
+    def test_after_register_runs_for_workers_registered_earlier(self, monkeypatch):
+        @worker()
+        class EarlyWorker:
+            async def process(self, job):
+                pass
+
+        registered = []
+
+        monkeypatch.setitem(_extensions, "worker.after_register", None)
+        put_ext("worker.after_register", registered.append)
+
+        @worker()
+        class LateWorker:
+            async def process(self, job):
+                pass
+
+        assert EarlyWorker in registered
+        assert LateWorker in registered
 
     def test_raises_on_invalid_cron_expression(self):
         with pytest.raises(ValueError, match="incorrect number of fields"):

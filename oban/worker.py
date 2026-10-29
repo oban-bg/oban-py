@@ -137,6 +137,10 @@ def register_worker(cls) -> None:
     _registry[key] = cls
 
 
+def registered_workers() -> list[type]:
+    return list(_registry.values())
+
+
 def resolve_worker(path: str) -> type:
     """Resolve a worker class by its path.
     Loads worker classes from the local registry, falling back to importing

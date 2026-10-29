@@ -12,15 +12,24 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
-from ._extensions import use_ext
+from ._extensions import replay_on_put, use_ext
 from ._scheduler import register_scheduled
 from .job import Job, Result
-from .worker import Worker, register_worker, worker_name
+from .worker import Worker, register_worker, registered_workers, worker_name
 
 JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation"} | {
     "scheduled_in",
     "schedule_in",
 }
+
+
+# Workers registered before the extension is put still go through it, so import order doesn't matter
+def _replay_after_register(func: Callable) -> None:
+    for cls in registered_workers():
+        func(cls)
+
+
+replay_on_put("worker.after_register", _replay_after_register)
 
 
 def worker(*, oban: str = "Oban", cron: str | dict | None = None, **overrides):
