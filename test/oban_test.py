@@ -492,10 +492,14 @@ class TestStartQueue:
         await oban_2.start()
 
         try:
-            await oban_1.start_queue(queue="priority", limit=10, node="node.2")
+            await oban_1.start_queue(
+                queue="priority", limit=10, node="node.2", weight=2
+            )
 
             await with_backoff(lambda: oban_1.check_queue("priority") is None)
             await with_backoff(lambda: oban_2.check_queue("priority") is not None)
+
+            assert oban_2.check_queue("priority").meta == {"weight": 2}
 
             await oban_2.start_queue(queue="priority", limit=10, node="node.1")
 

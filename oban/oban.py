@@ -996,7 +996,13 @@ class Oban:
         return [producer.check() for producer in self._producers.values()]
 
     async def start_queue(
-        self, *, queue: str, limit: int, paused: bool = False, node: str | None = None
+        self,
+        *,
+        queue: str,
+        limit: int,
+        paused: bool = False,
+        node: str | None = None,
+        **extra: Any,
     ) -> None:
         """Start a new supervised queue.
 
@@ -1008,6 +1014,7 @@ class Oban:
             limit: The concurrency limit for the queue
             paused: Whether the queue starts in a paused state (default: False)
             node: Specific node name to start the queue on. If not provided, starts across all nodes.
+            **extra: Additional queue options, passed through transparently
 
         Example:
             Start the priority queue with a concurrency limit of 10 across all nodes:
@@ -1023,7 +1030,9 @@ class Oban:
             >>> await oban.start_queue(queue="media", limit=5, paused=True)
         """
         if not node or node == self._node:
-            await self._start_queue_local(queue=queue, limit=limit, paused=paused)
+            await self._start_queue_local(
+                queue=queue, limit=limit, paused=paused, **extra
+            )
 
         if node != self._node:
             ident = self._scope_signal(node)
@@ -1036,6 +1045,7 @@ class Oban:
                     "limit": limit,
                     "paused": paused,
                     "ident": ident,
+                    **extra,
                 },
             )
 
