@@ -1,4 +1,4 @@
-.PHONY: bench check ci fix format precommit test
+.PHONY: bench check ci fix format hooks precommit test
 .PHONY: db-reset db-setup db-teardown
 .PHONY: docs docs-clean docs-publish docs-serve
 .PHONY: help release release-notes
@@ -22,6 +22,7 @@ help:
 	@echo "  docs-serve   - Serve documentation locally on port 8000"
 	@echo "  fix          - Fix linting issues automatically"
 	@echo "  format       - Format code with ruff"
+	@echo "  hooks        - Install git hooks from .githooks"
 	@echo "  precommit    - Run pre-commit checks (alias for ci)"
 	@echo "  release      - Build and publish a release (requires VERSION=x.y.z)"
 	@echo "  release-notes - Print CHANGELOG notes for a release (requires VERSION=x.y.z)"
@@ -33,6 +34,9 @@ check:
 	uv run ty check
 
 precommit: ci
+
+hooks:
+	git config core.hooksPath .githooks
 
 ci: check test
 
