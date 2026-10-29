@@ -318,6 +318,7 @@ class TestSchedulerEvaluate:
         assert job.meta["cron_at"] == "2026-08-26T22:30:00+00:00"
         assert job.meta["cron_expr"] == "* * * * *"
         assert "cron_name" in job.meta
+        assert job.meta["cron_tz"] == "UTC"
         assert job.meta["source"] == "default"
 
     async def test_uses_configured_timezone(self, mock_query, mock_notifier):

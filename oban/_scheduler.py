@@ -409,6 +409,7 @@ class Scheduler(Looper):
             "cron_at": cron_at,
             "cron_expr": entry.expression.input,
             "cron_name": cron_name,
+            "cron_tz": str(entry.timezone or self._timezone),
         }
 
         return job
