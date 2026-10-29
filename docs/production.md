@@ -171,6 +171,7 @@ events under these prefixes:
 | ------------------------- | ----------------------------------- |
 | `oban.leader.election`    | `leader`                            |
 | `oban.lifeline.rescue`    | `rescued_count`                     |
+| `oban.metrics.broadcast`  |                                     |
 | `oban.producer.ack`       | `queue`, `count`                    |
 | `oban.producer.get`       | `queue`, `count`                    |
 | `oban.pruner.prune`       | `pruned_count`                      |

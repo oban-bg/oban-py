@@ -150,14 +150,15 @@ class Metrics(Looper):
                 logger.exception("Error in metrics")
 
     async def broadcast(self) -> None:
-        await self._gather_counts()
-        await self._broadcast_checks()
-        await self._broadcast_metrics()
+        with telemetry.span("oban.metrics.broadcast", {}):
+            await self._gather_counts()
+            await self._broadcast_checks()
+            await self._broadcast_metrics()
 
-        self._cronitor_counter += 1
-        if self._cronitor_counter >= self._cronitor_interval / self._interval:
-            await self._broadcast_crontab()
-            self._cronitor_counter = 0
+            self._cronitor_counter += 1
+            if self._cronitor_counter >= self._cronitor_interval / self._interval:
+                await self._broadcast_crontab()
+                self._cronitor_counter = 0
 
     def _handle_job_event(self, _name: str, meta: dict[str, Any]) -> None:
         job = meta["job"]

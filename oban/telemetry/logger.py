@@ -13,6 +13,8 @@ EVENTS = [
     "oban.leader.election.stop",
     "oban.lifeline.rescue.exception",
     "oban.lifeline.rescue.stop",
+    "oban.metrics.broadcast.exception",
+    "oban.metrics.broadcast.stop",
     "oban.producer.ack.exception",
     "oban.producer.ack.stop",
     "oban.producer.get.exception",
