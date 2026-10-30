@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from oban._recorded import decode_recorded
+from oban.etf import Atom
 from oban.job import Job, Record
 
 
@@ -121,6 +122,7 @@ class TestRecord:
         assert decode_recorded(Record(123).encoded) == 123
         assert decode_recorded(Record([1, 2, 3]).encoded) == [1, 2, 3]
         assert decode_recorded(Record(None).encoded) is None
+        assert not isinstance(decode_recorded(Record(Atom("ok")).encoded), Atom)
         assert decode_recorded(Record({"nested": {"a": 1}}).encoded) == {
             "nested": {"a": 1}
         }
