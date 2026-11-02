@@ -60,6 +60,7 @@ html_theme_options = {
     "use_fullscreen_button": False,
     "show_toc_level": 2,
     "navigation_with_keys": True,
+    "navbar_persistent": [],
     "show_navbar_depth": 1,
     "switcher": {
         "json_url": os.environ.get(
