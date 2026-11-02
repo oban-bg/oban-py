@@ -1,7 +1,7 @@
 # Ready for Production
 
-This guide covers the essentials for running Oban in production: logging, job maintenance, and
-error monitoring.
+This guide covers the essentials for running Oban in production: logging, job maintenance, sizing
+the connection pool, shutting down gracefully, and running multiple nodes.
 
 ## Using the CLI (Recommended)
 
@@ -9,9 +9,9 @@ If you're using `oban start` to run your workers, **you're already production-re
 
 The CLI automatically enables:
 
-- ✅ **Logging**: Structured logs for all job and system events
-- ✅ **Job Pruning**: Removes completed jobs after 1 day (configurable via `oban.toml`)
-- ✅ **Orphan Rescue**: Recovers jobs interrupted by crashes or deployments
+- **Logging**: Structured logs for all job and system events
+- **Job Pruning**: Removes completed jobs after 1 day (configurable via `oban.toml`)
+- **Orphan Rescue**: Recovers jobs interrupted by crashes or deployments
 
 Simply start Oban with your configuration:
 
@@ -127,73 +127,26 @@ mode to wait for running jobs indefinitely.
 Cancellation is cooperative, so a job stops at its next `await`. Jobs that never await can't be
 interrupted.
 
-Each queue emits an `oban.queue.shutdown` telemetry event as it stops, with the `queue`, the
-`elapsed` time in nanoseconds, and the `orphaned` job ids left executing. The telemetry logger
-reports shutdowns that orphan jobs as a warning.
+The telemetry logger reports a warning, listing the orphaned job ids, whenever a queue's
+shutdown leaves jobs executing.
 
-## Leadership
+## Running Multiple Nodes
 
-Nodes that run queues take part in leader election, and only the leader runs cron scheduling and
-maintenance. The leader holds a lease in the database that it renews on the leader interval, and
-it announces when it exits so another node can take over immediately.
+Every node in a cluster needs a distinct name. The default combines the hostname and process id,
+which is unique as long as each node runs in its own process. If you override it with the `node`
+option or `OBAN_NODE`, keep it unique per process.
 
-That announcement travels over `LISTEN`/`NOTIFY`, which connection poolers in transaction mode,
-such as PgBouncer, don't support. Leadership still transfers in that setup, but only after the
-previous lease expires, which can take up to the leader interval of 30 seconds by default.
-
-Every instance needs a distinct node name for leadership to work, see the
-[node identity note](managing_queues.md) for the default and how to override it.
-
-## Telemetry Events
-
-The telemetry logger is built on Oban's telemetry events, which you can also attach to directly
-for metrics, tracing, or error reporting:
-
-```python
-from oban import telemetry
-
-
-def handle_event(name, meta): ...
-
-
-telemetry.attach("my-app", ["oban.job.stop", "oban.job.exception"], handle_event)
-```
-
-Job execution emits `oban.job.start`, followed by either `oban.job.stop` or
-`oban.job.exception`. Each includes the `job`, and the stop and exception events add the final
-`state`, `duration`, and `queue_time` in nanoseconds. Exception events also carry the
-`error_type`, `error_message`, and `traceback`.
-
-Internal processes report their work as spans, emitting `.start`, `.stop`, and `.exception`
-events under these prefixes:
-
-| Prefix                    | Metadata                            |
-| ------------------------- | ----------------------------------- |
-| `oban.leader.election`    | `leader`                            |
-| `oban.lifeline.rescue`    | `rescued_count`                     |
-| `oban.metrics.broadcast`  |                                     |
-| `oban.producer.ack`       | `queue`, `count`                    |
-| `oban.producer.get`       | `queue`, `count`                    |
-| `oban.pruner.prune`       | `pruned_count`                      |
-| `oban.refresher.cleanup`  | `cleanup_count`                     |
-| `oban.refresher.refresh`  | `refreshed_count`, `restored_count` |
-| `oban.scheduler.evaluate` | `cron_at`, `enqueued_count`         |
-| `oban.stager.stage`       | `staged_count`, `available_queues`  |
-
-Stop and exception events include the span's `duration`, and exception events add the
-`error_type`, `error_message`, and `traceback`. Queues also emit `oban.queue.shutdown`, covered
-under Graceful Shutdown above.
-
-Attaching to a name that's never emitted fails silently, so check your subscriptions against
-`oban.telemetry.EVENTS`, the complete list of emitted events.
+Oban's notifier relies on PostgreSQL's `LISTEN`, which connection poolers in transaction mode,
+such as PgBouncer, don't support. Point Oban directly at PostgreSQL, or at a pooler in session
+mode, so queue control, job cancellation, and leadership changes reach every node promptly.
 
 ## Ship It!
 
 Whether you're using the CLI or embedded mode, you now have:
 
-- ✅ **Structured logging** for debugging and monitoring
-- ✅ **Automatic job pruning** to prevent unbounded table growth
-- ✅ **Orphan recovery** for interrupted jobs
+- **Structured logging** for debugging and monitoring
+- **Automatic job pruning** to prevent unbounded table growth
+- **Orphan recovery** for interrupted jobs
 
 The CLI handles all of this automatically, making it the recommended approach for most production
 deployments.

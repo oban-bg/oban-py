@@ -28,6 +28,7 @@ enqueueing_jobs
 periodic_jobs
 managing_jobs
 job_maintenance
+telemetry
 web_dashboard
 testing
 ```
