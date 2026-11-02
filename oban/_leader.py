@@ -49,6 +49,8 @@ class Leader(Looper):
         self._interval = interval
         self._name = name
         self._node = node
+
+        self._lease = f"py:{name}"
         self._notifier = notifier
         self._query = query
 
@@ -93,7 +95,7 @@ class Leader(Looper):
         if self._is_leader:
             payload = {"action": "resign", "node": self._node, "name": self._name}
 
-            await self._query.resign_leader(self._name, self._node)
+            await self._query.resign_leader(self._lease, self._node)
             await self._notifier.notify("leader", payload)
 
     async def _loop(self) -> None:
@@ -121,7 +123,7 @@ class Leader(Looper):
             with telemetry.span("oban.leader.election", meta) as context:
                 try:
                     self._is_leader = await self._query.attempt_leadership(
-                        self._name, self._node, int(self._interval)
+                        self._lease, self._node, int(self._interval)
                     )
                 except Exception:
                     # Without a result there's no way to know whether the lease is still held,
