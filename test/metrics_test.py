@@ -6,6 +6,8 @@ from oban import worker
 from oban._metrics import Metrics, _build_gauge, _build_sketch, _compute_bin
 from oban._scheduler import clear_scheduled, register_scheduled
 
+from .helpers import with_backoff
+
 
 @worker()
 class MetricsTestWorker:
@@ -177,7 +179,7 @@ class TestJobMetricsBroadcast:
 
             # Enqueue and wait for job to complete
             await oban.enqueue(MetricsTestWorker.new({}))
-            await asyncio.sleep(0.02)
+            await with_backoff(lambda: len(oban._metrics._buffer) > 0)
 
             # Trigger metrics broadcast
             await oban._metrics.broadcast()
@@ -245,7 +247,6 @@ class TestFullCountMetrics:
             await oban._notifier.listen("metrics", callback)
 
             await oban.enqueue(MetricsTestWorker.new({}))
-            await asyncio.sleep(0.02)
 
             await oban._metrics.broadcast()
 
@@ -271,7 +272,7 @@ class TestFullCountMetrics:
             await oban._notifier.listen("metrics", callback)
 
             await oban.enqueue(MetricsTestWorker.new({}))
-            await asyncio.sleep(0.02)
+            await with_backoff(lambda: len(oban._metrics._buffer) > 0)
 
             await oban._metrics.broadcast()
 
@@ -307,7 +308,6 @@ class TestEstimatedCounts:
             # Insert jobs to exceed the limit (estimate_limit=1)
             await oban.enqueue(MetricsTestWorker.new({}))
             await oban.enqueue(MetricsTestWorker.new({}))
-            await asyncio.sleep(0.02)
 
             # First broadcast uses exact counts (previous_counts is empty)
             await oban._metrics.broadcast()
