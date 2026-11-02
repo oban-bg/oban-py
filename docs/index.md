@@ -19,18 +19,30 @@ production
 
 ```{toctree}
 :maxdepth: 2
-:caption: Guides
+:caption: Jobs
 
-defining_queues
-managing_queues
 writing_jobs
 enqueueing_jobs
 periodic_jobs
 managing_jobs
+testing
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Queues
+
+defining_queues
+managing_queues
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Operations
+
 job_maintenance
 telemetry
 web_dashboard
-testing
 ```
 
 ```{toctree}
