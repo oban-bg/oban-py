@@ -5,6 +5,14 @@ import pytest
 from oban import Cancel, Job, telemetry, worker
 from oban._producer import LocalDispatcher, Producer
 
+from .helpers import with_backoff
+
+
+async def assert_state(oban, job_id, expected_state):
+    job = await oban.get_job(job_id)
+
+    assert job is not None and job.state == expected_state
+
 
 async def all_producers(conn):
     result = await conn.execute("""
@@ -123,13 +131,7 @@ class TestProducerAcks:
             job = await oban.enqueue(PausingWorker.new())
 
             await asyncio.wait_for(finished.wait(), timeout=1.0)
-
-            # Give producer loop time to flush the ACK
-            await asyncio.sleep(0.1)
-
-            fetched = await oban.get_job(job.id)
-            assert fetched is not None
-            assert fetched.state == "completed"
+            await with_backoff(lambda: assert_state(oban, job.id, "completed"))
 
     @pytest.mark.oban(queues={"default": 1})
     async def test_stale_ack_ignored_after_job_reattempted(self, oban_instance):
@@ -151,11 +153,15 @@ class TestProducerAcks:
             job = await oban.enqueue(ReattemptedWorker.new())
 
             await asyncio.wait_for(finished.wait(), timeout=1.0)
-            await asyncio.sleep(0.1)
 
-            fetched = await oban.get_job(job.id)
-            assert fetched is not None
-            assert fetched.state == "executing"
+            producer = oban._producers["default"]
+
+            # The ACK is pending once the job leaves running, and flushed once pending is empty
+            await with_backoff(
+                lambda: not producer._running_jobs and not producer._pending_acks
+            )
+
+            await assert_state(oban, job.id, "executing")
 
     @pytest.mark.oban(queues={"default": 1})
     async def test_cancel_ack_records_error_for_cancelled_job(self, oban_instance):
@@ -179,12 +185,14 @@ class TestProducerAcks:
             job = await oban.enqueue(CancelledWorker.new())
 
             await asyncio.wait_for(finished.wait(), timeout=1.0)
-            await asyncio.sleep(0.1)
 
-            fetched = await oban.get_job(job.id)
-            assert fetched is not None
-            assert fetched.state == "cancelled"
-            assert len(fetched.errors) == 1
+            async def assert_error_recorded():
+                fetched = await oban.get_job(job.id)
+
+                assert fetched is not None and len(fetched.errors) == 1
+
+            await with_backoff(assert_error_recorded)
+            await assert_state(oban, job.id, "cancelled")
 
 
 class TestProducerShutdown:
@@ -247,8 +255,11 @@ class TestProducerShutdown:
 class TestProducerCancellation:
     async def test_loop_exits_when_cancellation_surfaces_as_another_error(self):
         producer = Producer(name="Oban", node="worker", notifier=None, query=None)
+        producing = asyncio.Event()
 
         async def produce():
+            producing.set()
+
             try:
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
@@ -258,7 +269,7 @@ class TestProducerCancellation:
         producer.notify()
 
         task = asyncio.create_task(producer._loop())
-        await asyncio.sleep(0.01)
+        await asyncio.wait_for(producing.wait(), timeout=1.0)
         task.cancel()
 
         await asyncio.wait([task], timeout=0.1)

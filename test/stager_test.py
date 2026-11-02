@@ -40,10 +40,12 @@ class TestStagerValidation:
 
 class TestStagerStop:
     async def test_stop_lets_in_flight_staging_finish(self):
+        staging = asyncio.Event()
         finished = asyncio.Event()
 
         class SlowQuery:
             async def stage_jobs(self, limit, queues):
+                staging.set()
                 await asyncio.sleep(0.02)
                 finished.set()
 
@@ -58,7 +60,7 @@ class TestStagerStop:
         )
         stager._loop_task = asyncio.create_task(stager._loop())
 
-        await asyncio.sleep(0)
+        await asyncio.wait_for(staging.wait(), timeout=1.0)
         await stager.stop()
 
         assert finished.is_set()

@@ -317,22 +317,19 @@ class TestPauseAndResumeQueue:
 
             await oban.resume_queue("default")
 
-            await asyncio.sleep(0.05)
-            assert executed.is_set()
+            await asyncio.wait_for(executed.wait(), timeout=1.0)
 
     @pytest.mark.oban(queues={"alpha": 1, "gamma": 1})
     async def test_pause_queue_only_affects_specified_queue(self, oban_instance):
         async with oban_instance() as oban:
             await oban.pause_queue("alpha")
 
-            # Required to prevent the pause broadcast from overwriting the resume
-            await asyncio.sleep(0.1)
-
             assert oban.check_queue("alpha").paused
             assert not oban.check_queue("gamma").paused
 
+            # The pause broadcast may land after the local resume, but the resume broadcast follows
             await oban.resume_queue("alpha")
-            assert not oban.check_queue("alpha").paused
+            await with_backoff(lambda: not oban.check_queue("alpha").paused)
 
     @pytest.mark.oban(queues={"default": 2})
     async def test_pause_queue_with_node(self, oban_instance):
@@ -427,14 +424,17 @@ class TestPauseAndResumeAllQueues:
             assert oban.check_queue("gamma").paused
             assert oban.check_queue("delta").paused
 
-            # Sleep to prevent overwrite
-            await asyncio.sleep(0.1)
-
             await oban.resume_all_queues()
 
-            assert not oban.check_queue("alpha").paused
-            assert not oban.check_queue("gamma").paused
-            assert not oban.check_queue("delta").paused
+            # The pause broadcast may land after the local resume, but the resume broadcast follows
+            await with_backoff(
+                lambda: (
+                    not any(
+                        oban.check_queue(queue).paused
+                        for queue in ("alpha", "gamma", "delta")
+                    )
+                )
+            )
 
     @pytest.mark.oban(queues={"alpha": 1, "gamma": 1})
     async def test_pausing_and_resuming_all_queues_with_node(self, oban_instance):
