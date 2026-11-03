@@ -21,16 +21,16 @@ Uniqueness is based on a combination of job attributes using the following optio
 
 * **group** — A named group of job states that are checked for duplicates:
 
-  * `all` - All states, including `cancelled` and `discarded` (the default)
+  * `all` - All states, including `cancelled` and `discarded`
   * `incomplete` - Jobs that haven't finished processing: `scheduled`, `available`,
     `executing`, `retryable`, and `suspended`
   * `scheduled` - Only `scheduled` jobs (useful for "debouncing")
-  * `successful` - Only `completed` jobs
+  * `successful` - All states except `cancelled` and `discarded` (the default)
 
 ## Configuring Uniqueness
 
 The simplest form of uniqueness considers a job a duplicate for as long as a matching job exists in
-the database, regardless of state:
+the database, unless it was cancelled or discarded:
 
 ```python
 @worker(queue="default", unique=True)

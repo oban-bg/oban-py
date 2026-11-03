@@ -140,7 +140,7 @@ class TestUnique:
 
         assert job.extra["unique"] == {
             "fields": ["queue", "worker", "args"],
-            "group": "all",
+            "group": "successful",
             "keys": None,
             "period": None,
         }
@@ -154,7 +154,7 @@ class TestUnique:
         job = Job(worker="Worker", unique=unique)
 
         assert job.extra["unique"]["fields"] == ["meta"]
-        assert job.extra["unique"]["group"] == "all"
+        assert job.extra["unique"]["group"] == "successful"
         assert job.extra["unique"]["period"] == 3600
 
     def test_rejecting_invalid_options(self):

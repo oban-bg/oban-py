@@ -169,5 +169,5 @@ class TestUniqueLockKey:
         )
 
         assert unique_lock_key("public", job) == (
-            '["public","all",null,[["args",{"a":{"c":null,"d":[1,"x"]},"b":2}],["worker","Worker"]]]'
+            '["public","successful",null,[["args",{"a":{"c":null,"d":[1,"x"]},"b":2}],["worker","Worker"]]]'
         )

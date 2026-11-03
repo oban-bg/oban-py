@@ -39,7 +39,7 @@ class UniqueOptions(TypedDict, total=False):
 
 DEFAULT_UNIQUE = {
     "fields": ["queue", "worker", "args"],
-    "group": "all",
+    "group": "successful",
     "keys": None,
     "period": None,
 }
@@ -53,7 +53,7 @@ GROUP_STATES = {
     "all": [*INCOMPLETE_STATES, "completed", "cancelled", "discarded"],
     "incomplete": INCOMPLETE_STATES,
     "scheduled": ["scheduled"],
-    "successful": ["completed"],
+    "successful": [*INCOMPLETE_STATES, "completed"],
 }
 
 
