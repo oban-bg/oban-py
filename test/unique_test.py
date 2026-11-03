@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from oban import Job, worker
+from oban._unique import unique_lock_key
 
 
 @worker()
@@ -157,3 +158,16 @@ class TestUniqueInsert:
             assert not conflicted(await insert(0, 239))
             assert conflicted(await insert(1, timedelta(minutes=10)))
             assert conflicted(await insert(1, None))
+
+
+class TestUniqueLockKey:
+    def test_serializing_compact_json_with_sorted_keys(self):
+        job = Job(
+            worker="Worker",
+            args={"b": 2, "a": {"d": [1, "x"], "c": None}},
+            unique={"fields": ["worker", "args"]},
+        )
+
+        assert unique_lock_key("public", job) == (
+            '["public","all",null,[["args",{"a":{"c":null,"d":[1,"x"]},"b":2}],["worker","Worker"]]]'
+        )

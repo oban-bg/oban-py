@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -125,14 +124,11 @@ def unique_values(job: Job) -> list[tuple[str, Any]]:
     return values
 
 
-def unique_lock_key(prefix: str, job: Job) -> int:
+def unique_lock_key(prefix: str, job: Job) -> str:
     unique = job.extra["unique"]
     data = [prefix, unique["group"], unique["keys"], unique_values(job)]
 
-    serialized = orjson.dumps(data, option=orjson.OPT_SORT_KEYS)
-    digest = hashlib.blake2b(serialized, digest_size=8).digest()
-
-    return int.from_bytes(digest, signed=True)
+    return orjson.dumps(data, option=orjson.OPT_SORT_KEYS).decode()
 
 
 def unique_conditions(job: Job) -> tuple[str, dict[str, Any]]:

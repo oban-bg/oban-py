@@ -158,6 +158,7 @@ async def _insert_job(query: Query, conn: Any, job: Job) -> Job:
 
 
 async def _insert_unique_job(query: Query, conn: Any, job: Job) -> Job:
+    lock_stmt = Query._load_file("lock_unique_job.sql", query._prefix)
     lock_key = unique_lock_key(query._prefix, job)
     conditions, params = unique_conditions(job)
     params = {key: Query._cast_type(key, val) for key, val in params.items()}
@@ -168,9 +169,7 @@ async def _insert_unique_job(query: Query, conn: Any, job: Job) -> Job:
     transaction_conn = conn.connection if isinstance(conn, AsyncCursor) else conn
 
     async with transaction_conn.transaction():
-        result = await conn.execute(
-            "SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", (lock_key,)
-        )
+        result = await conn.execute(lock_stmt, {"key": lock_key})
         (locked,) = await result.fetchone()
 
         if locked:
