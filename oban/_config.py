@@ -9,6 +9,7 @@ from typing import Any
 from psycopg_pool import AsyncConnectionPool
 
 from oban import Oban
+from oban._dispatcher import Dispatcher
 
 
 @dataclass
@@ -27,6 +28,11 @@ class Config:
     prefix: str | None = None
     queues: dict[str, int] = field(default_factory=dict)
     shutdown_grace_period: float | None = None
+
+    # Multi-process execution
+    processes: int | None = None
+    setup: str | None = None
+    teardown: str | None = None
 
     # Core loop configurations
     lifeline: dict[str, Any] | None = None
@@ -77,6 +83,9 @@ class Config:
         - OBAN_POOL_MAX_LIFETIME: Max seconds before recycling a connection
         - OBAN_POOL_MAX_IDLE: Max seconds a connection can sit idle
         - OBAN_POOL_CHECK: Validate connections before use
+        - OBAN_PROCESSES: Number of worker processes for parallel execution
+        - OBAN_SETUP: Import path of an async function run as each worker process starts
+        - OBAN_TEARDOWN: Import path of an async function run as each worker process stops
         """
         params: dict[str, Any] = {}
 
@@ -104,6 +113,12 @@ class Config:
             params["pool_check"] = value.lower() == "true"
         if (value := os.getenv("OBAN_NOTIFIER")) is not None:
             params["notifier"] = {"type": value}
+        if (value := os.getenv("OBAN_PROCESSES")) is not None:
+            params["processes"] = int(value)
+        if (value := os.getenv("OBAN_SETUP")) is not None:
+            params["setup"] = value
+        if (value := os.getenv("OBAN_TEARDOWN")) is not None:
+            params["teardown"] = value
 
         return cls(**params)
 
@@ -194,6 +209,14 @@ class Config:
         self, pool: AsyncConnectionPool | None = None, dispatcher: Any = None
     ) -> Oban:
         pool = pool or await self.create_pool()
+
+        if dispatcher is None and self.processes:
+            dispatcher = Dispatcher(
+                conf=self,
+                num_processes=self.processes,
+                setup=self.setup,
+                teardown=self.teardown,
+            )
 
         params: dict[str, Any] = {
             "pool": pool,

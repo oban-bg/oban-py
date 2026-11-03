@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from . import telemetry
 from ._backoff import jitter
-from ._executor import Executor
+from ._executor import AckAction, Executor
 from ._extensions import use_ext
 from ._looper import Looper, stop_gracefully
 from .job import Job
@@ -69,15 +69,25 @@ async def _get_jobs(producer: Producer) -> list[Job]:
         return []
 
 
+async def _execute(job: Job) -> AckAction | None:
+    job._cancellation = asyncio.Event()
+
+    executor = await Executor(job=job, safe=True).execute()
+
+    return executor.action
+
+
 class Dispatcher(Protocol):
-    def dispatch(self, producer: Producer, job: Job) -> asyncio.Task: ...
+    def dispatch(
+        self, producer: Producer, job: Job
+    ) -> asyncio.Task[AckAction | None]: ...
 
     def cancel(self, producer: Producer, job: Job) -> None: ...
 
 
 class LocalDispatcher:
-    def dispatch(self, producer: Producer, job: Job) -> asyncio.Task:
-        return asyncio.create_task(producer._execute(job))
+    def dispatch(self, _producer: Producer, job: Job) -> asyncio.Task[AckAction | None]:
+        return asyncio.create_task(_execute(job))
 
     def cancel(self, producer: Producer, job: Job) -> None:
         if job._cancellation:
@@ -326,7 +336,7 @@ class Producer(Looper):
         for job in jobs:
             task = self._dispatcher.dispatch(self, job)
             task.add_done_callback(
-                lambda _, job_id=job.id: self._on_job_complete(job_id)
+                lambda task, job_id=job.id: self._on_job_complete(job_id, task)
             )
 
             self._running_jobs[job.id] = (job, task)
@@ -350,15 +360,11 @@ class Producer(Looper):
 
             return jobs
 
-    async def _execute(self, job: Job) -> None:
-        job._cancellation = asyncio.Event()
-
-        executor = await Executor(job=job, safe=True).execute()
-
-        self._pending_acks.append(executor.action)
-
-    def _on_job_complete(self, job_id: int) -> None:
+    def _on_job_complete(self, job_id: int, task: asyncio.Task) -> None:
         self._running_jobs.pop(job_id, None)
+
+        if not task.cancelled() and task.exception() is None and task.result():
+            self._pending_acks.append(task.result())
 
         self.notify()
 
@@ -369,6 +375,8 @@ class Producer(Looper):
         if not tasks:
             return []
 
+        # Completion callbacks registered in _produce run before wait returns, so acks for
+        # finished jobs are already pending by the time the caller acks them.
         _done, pending = await asyncio.wait(tasks, timeout=self._shutdown_grace_period)
 
         for task in pending:

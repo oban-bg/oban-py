@@ -168,7 +168,9 @@ async def _insert_unique_job(query: Query, conn: Any, job: Job) -> Job:
     transaction_conn = conn.connection if isinstance(conn, AsyncCursor) else conn
 
     async with transaction_conn.transaction():
-        result = await conn.execute("SELECT pg_try_advisory_xact_lock(%s)", (lock_key,))
+        result = await conn.execute(
+            "SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", (lock_key,)
+        )
         (locked,) = await result.fetchone()
 
         if locked:

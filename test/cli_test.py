@@ -122,7 +122,16 @@ class TestStartCommand:
 
         result = runner.invoke(
             main,
-            ["start", "--dsn", dsn, "--queues", "default:10", "--dry-run"],
+            [
+                "start",
+                "--dsn",
+                dsn,
+                "--queues",
+                "default:10",
+                "--processes",
+                "2",
+                "--dry-run",
+            ],
         )
 
         assert result.exit_code == 0

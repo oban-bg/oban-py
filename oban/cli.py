@@ -7,7 +7,7 @@ import os
 import signal
 import subprocess
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -348,6 +348,23 @@ def uninstall(config: str | None, dsn: str | None, prefix: str | None) -> None:
     help="Maximum connection pool size (default: 10)",
 )
 @click.option(
+    "--processes",
+    "-p",
+    envvar="OBAN_PROCESSES",
+    type=int,
+    help="Number of worker processes for parallel execution (default: run in-process)",
+)
+@click.option(
+    "--setup",
+    envvar="OBAN_SETUP",
+    help="Async function run as each worker process starts (e.g., 'myapp.setup')",
+)
+@click.option(
+    "--teardown",
+    envvar="OBAN_TEARDOWN",
+    help="Async function run as each worker process stops (e.g., 'myapp.teardown')",
+)
+@click.option(
     "--log-level",
     type=click.Choice(
         ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
@@ -396,17 +413,38 @@ def start(
         export OBAN_DSN=postgresql://localhost/mydb
         export OBAN_QUEUES=default:10,mailers:5
         oban start
+
+        # Execute jobs across 4 worker processes
+        oban start --queues default:20 --processes 4
     """
     logging.getLogger().setLevel(getattr(logging, log_level.upper()))
 
+    conf = _load_conf(config, params)
+
+    _start(
+        conf,
+        banner=lambda: print_banner(__version__),
+        cron_modules=cron_modules,
+        cron_paths=cron_paths,
+        dry_run=dry_run,
+    )
+
+
+def _start(
+    conf: Config,
+    *,
+    banner: Callable[[], None],
+    cron_modules: str | None,
+    cron_paths: str | None,
+    dry_run: bool,
+) -> None:
     set_json_dumps(orjson.dumps)
     set_json_loads(orjson.loads)
 
-    conf = _load_conf(config, params)
     node = conf.node or _default_node()
 
     async def run() -> None:
-        print_banner(__version__)
+        banner()
 
         logger.info(f"Starting Oban v{__version__} on node {node}...")
 
@@ -421,6 +459,9 @@ def start(
 
         pool = await _start_pool(conf)
         oban = await conf.create_oban(pool)
+
+        if conf.processes:
+            logger.info(f"Executing jobs across {conf.processes} worker processes")
 
         telemetry_logger.attach()
         shutdown_event = handle_signals()

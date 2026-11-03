@@ -87,6 +87,9 @@ without worrying about jobs being lost or orphaned due to crashes.
 - **Resilient Queues** — Failing queries won't crash the entire process, instead a backoff
   mechanism will safely retry them again in the future.
 
+- **Multi-Process Execution** — Bypass the GIL and utilize multiple cores for CPU-intensive
+  workloads. Jobs are distributed across worker processes with `oban start --processes`.
+
 - **Job Canceling** — Jobs can be canceled regardless of which node they are running on. For
   executing jobs, workers can check for cancellation at safe points and stop gracefully.
 
@@ -135,9 +138,6 @@ possible.
 
 - **Drop-In Optimizations** — Switch to Pro for automatic bulk inserts, bulk acking, accurate
   orphan rescue, and constraint-backed unique jobs, with no code changes required.
-
-- **Multi-Process Execution** — Bypass the GIL and utilize multiple cores for CPU-intensive
-  workloads. Just switch from `oban start` to `obanpro start`.
 
 - **Erlang Notifier** — Replace Postgres pub/sub with direct communication between processes.
   Works through transaction poolers, without a payload size limit, and keeps notifications out of

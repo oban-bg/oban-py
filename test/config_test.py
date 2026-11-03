@@ -12,6 +12,8 @@ class TestFromEnv:
         monkeypatch.setenv("OBAN_POOL_MIN_SIZE", "2")
         monkeypatch.setenv("OBAN_POOL_MAX_SIZE", "20")
         monkeypatch.setenv("OBAN_SHUTDOWN_GRACE_PERIOD", "30")
+        monkeypatch.setenv("OBAN_PROCESSES", "4")
+        monkeypatch.setenv("OBAN_SETUP", "myapp.setup")
 
         conf = Config.from_env()
 
@@ -22,6 +24,8 @@ class TestFromEnv:
         assert conf.pool_min_size == 2
         assert conf.pool_max_size == 20
         assert conf.shutdown_grace_period == 30.0
+        assert conf.processes == 4
+        assert conf.setup == "myapp.setup"
 
     def test_from_env_with_notifier_type(self, monkeypatch):
         monkeypatch.setenv("OBAN_NOTIFIER", "erlang")
