@@ -16,6 +16,7 @@ import orjson
 
 from ._extensions import use_ext
 from ._recorded import encode_recorded
+from ._unique import UniqueOptions, normalize_unique
 
 
 class JobState(StrEnum):
@@ -195,6 +196,7 @@ class Job:
         scheduled_at: datetime | None = None,
         scheduled_in: timedelta | float | None = None,
         schedule_in: timedelta | float | None = None,
+        unique: bool | UniqueOptions | None = None,
         extra: dict[str, Any] | None = None,
         _validate: bool = True,
     ) -> None:
@@ -224,6 +226,8 @@ class Job:
             scheduled_at: When to run the job
             scheduled_in: Alternative to scheduled_at. Timedelta or seconds from now
             schedule_in: Deprecated alias for scheduled_in, to be removed in 1.0
+            unique: Prevent inserting duplicate jobs. Pass True for defaults, or a dict with
+                    fields, keys, group, and period. Stored in extra["unique"] (not persisted)
             extra: Extra data for runtime use (not persisted)
             _validate: Whether to validate and normalize (default: True)
 
@@ -262,6 +266,9 @@ class Job:
         self.attempted_by = attempted_by if attempted_by is not None else []
         self.extra = extra if extra is not None else {}
         self._cancellation: asyncio.Event | None = None
+
+        if unique_opts := normalize_unique(unique):
+            self.extra = {**self.extra, "unique": unique_opts}
 
         if scheduled_in is None:
             scheduled_in = schedule_in

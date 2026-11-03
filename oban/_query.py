@@ -15,6 +15,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from ._executor import AckAction
 from ._extensions import use_ext
+from ._unique import unique_conditions, unique_lock_key
 from .job import TIMESTAMP_FIELDS, Job
 
 # Type alias for connection-like objects that can be passed to enqueue
@@ -122,25 +123,13 @@ async def _insert_jobs(
     query: Query, jobs: list[Job], conn: ConnectionLike = None
 ) -> list[Job]:
     async def inner_insert(conn):
-        stmt = Query._load_file("insert_job.sql", query._prefix)
         inserted = []
 
         for job in jobs:
-            args = {
-                key: Query._cast_type(key, getattr(job, key))
-                for key in INSERTABLE_FIELDS
-            }
-
-            result = await conn.execute(stmt, args)
-            row = await result.fetchone()
-
-            job.id = row[0]
-            job.inserted_at = row[1]
-            job.queue = row[2]
-            job.scheduled_at = row[3]
-            job.state = row[4]
-
-            inserted.append(job)
+            if job.extra.get("unique"):
+                inserted.append(await _insert_unique_job(query, conn, job))
+            else:
+                inserted.append(await _insert_job(query, conn, job))
 
         return inserted
 
@@ -149,6 +138,48 @@ async def _insert_jobs(
 
     async with query._pool.connection() as pool_conn:
         return await inner_insert(pool_conn)
+
+
+async def _insert_job(query: Query, conn: Any, job: Job) -> Job:
+    stmt = Query._load_file("insert_job.sql", query._prefix)
+    args = {key: Query._cast_type(key, getattr(job, key)) for key in INSERTABLE_FIELDS}
+
+    result = await conn.execute(stmt, args)
+    row = await result.fetchone()
+
+    job.id = row[0]
+    job.inserted_at = row[1]
+    job.queue = row[2]
+    job.scheduled_at = row[3]
+    job.state = row[4]
+    job.extra = {**job.extra, "conflicted": False}
+
+    return job
+
+
+async def _insert_unique_job(query: Query, conn: Any, job: Job) -> Job:
+    lock_key = unique_lock_key(query._prefix, job)
+    conditions, params = unique_conditions(job)
+    params = {key: Query._cast_type(key, val) for key, val in params.items()}
+
+    stmt = Query._load_file("find_unique_job.sql", query._prefix)
+    stmt = cast(LiteralString, stmt.replace("{conditions}", conditions))
+
+    transaction_conn = conn.connection if isinstance(conn, AsyncCursor) else conn
+
+    async with transaction_conn.transaction():
+        result = await conn.execute("SELECT pg_try_advisory_xact_lock(%s)", (lock_key,))
+        (locked,) = await result.fetchone()
+
+        if locked:
+            result = await conn.execute(stmt, params)
+
+            if await result.fetchone() is None:
+                return await _insert_job(query, conn, job)
+
+    job.extra = {**job.extra, "conflicted": True}
+
+    return job
 
 
 class Query:

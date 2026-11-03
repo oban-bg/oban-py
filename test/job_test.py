@@ -132,3 +132,40 @@ class TestRecord:
 
         with pytest.raises(ValueError, match="exceeds limit"):
             Record(large_value, limit=10)
+
+
+class TestUnique:
+    def test_unique_true_uses_defaults(self):
+        job = Job(worker="Worker", unique=True)
+
+        assert job.extra["unique"] == {
+            "fields": ["queue", "worker", "args"],
+            "group": "all",
+            "keys": None,
+            "period": None,
+        }
+
+    def test_unique_none_or_false_is_ignored(self):
+        assert "unique" not in Job(worker="Worker", unique=None).extra
+        assert "unique" not in Job(worker="Worker", unique=False).extra
+
+    def test_merging_options_and_converting_period(self):
+        unique = {"fields": ["meta"], "keys": ["slug"], "period": timedelta(hours=1)}
+        job = Job(worker="Worker", unique=unique)
+
+        assert job.extra["unique"]["fields"] == ["meta"]
+        assert job.extra["unique"]["group"] == "all"
+        assert job.extra["unique"]["period"] == 3600
+
+    def test_rejecting_invalid_options(self):
+        for unique in [
+            "yes",
+            {"special": "value"},
+            {"fields": ["bogus"]},
+            {"group": "random"},
+            {"keys": "id"},
+            {"keys": ["id"], "fields": ["worker"]},
+            {"period": "bogus"},
+        ]:
+            with pytest.raises((TypeError, ValueError), match="unique"):
+                Job(worker="Worker", unique=unique)

@@ -23,6 +23,7 @@ production
 
 writing_jobs
 enqueueing_jobs
+unique_jobs
 periodic_jobs
 managing_jobs
 testing

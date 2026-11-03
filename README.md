@@ -93,6 +93,9 @@ without worrying about jobs being lost or orphaned due to crashes.
 - **Triggered Execution** — Insert triggers ensure that jobs are dispatched on all connected nodes
   as soon as they are inserted into the database.
 
+- **Unique Jobs** — Duplicate work can be avoided through unique job controls. Uniqueness can be
+  enforced at the argument, queue, worker and even sub-argument level for any period of time.
+
 - **Scheduled Jobs** — Jobs can be scheduled at any time in the future, down to the second.
 
 - **Periodic (CRON) Jobs** — Automatically enqueue jobs on a cron-like schedule. Duplicate jobs
@@ -130,8 +133,8 @@ without worrying about jobs being lost or orphaned due to crashes.
 Oban Pro is a licensed add-on that expands what Oban is capable of while making complex workflows
 possible.
 
-- **Drop-In Optimizations** — Switch to Pro for automatic bulk inserts, bulk acking, and
-  accurate orphan rescue, with no code changes required.
+- **Drop-In Optimizations** — Switch to Pro for automatic bulk inserts, bulk acking, accurate
+  orphan rescue, and constraint-backed unique jobs, with no code changes required.
 
 - **Multi-Process Execution** — Bypass the GIL and utilize multiple cores for CPU-intensive
   workloads. Just switch from `oban start` to `obanpro start`.
@@ -145,9 +148,6 @@ possible.
 
 - **Pro Pruner** — Fine-grained retention rules per queue, worker, or state. Prune on a cron
   schedule, manage rules at runtime, and archive jobs rather than deleting them.
-
-- **Unique Jobs** — Prevent enqueueing duplicate jobs based on worker, args, queue, or specific
-  keys, with configurable time windows.
 
 - **Relay** — Dispatch jobs and await their results with synchronous-style semantics, even when
   jobs execute on different servers.
