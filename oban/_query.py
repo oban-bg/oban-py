@@ -247,12 +247,12 @@ class Query:
     async def ack_jobs(self, acks: list[AckAction]) -> list[int]:
         return await use_ext("query.ack_jobs", _ack_jobs, self, acks)
 
-    async def all_jobs(self, states: list[str]) -> list[Job]:
+    async def all_jobs(self, states: list[str], limit: int | None = None) -> list[Job]:
         async with self._pool.connection() as conn:
             stmt = self._load_file("all_jobs.sql", self._prefix)
 
             async with conn.cursor(row_factory=class_row(Job)) as cur:
-                await cur.execute(stmt, {"states": states})
+                await cur.execute(stmt, {"limit": limit, "states": states})
                 return await cur.fetchall()
 
     async def count_jobs(self, states: Sequence[str]) -> list[tuple[str, str, int]]:

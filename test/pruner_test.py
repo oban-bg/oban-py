@@ -20,13 +20,6 @@ async def insert_job(conn, state, ago):
     return id
 
 
-async def get_ids(conn):
-    rows = await conn.execute("SELECT id FROM oban_jobs ORDER BY id")
-    result = await rows.fetchall()
-
-    return [id for (id,) in result]
-
-
 class TestPrunerValidation:
     def test_valid_config_passes(self):
         Pruner._validate(max_age=86_400, interval=60.0, limit=20_000)
@@ -96,7 +89,4 @@ class TestPruner:
             # Force synchronous pruning
             await oban._pruner._prune()
 
-            async with oban._connection() as conn:
-                job_ids = await get_ids(conn)
-
-            assert [id_1, id_2, id_3] == job_ids
+            assert [job.id for job in await oban.all_jobs()] == [id_3, id_2, id_1]

@@ -25,7 +25,7 @@ from ._query import ConnectionLike, Query
 from ._refresher import build_refresher
 from ._scheduler import build_scheduler
 from ._stager import build_stager
-from .job import Job
+from .job import Job, JobState
 
 QueueConfig = int | dict[str, Any]
 
@@ -531,6 +531,36 @@ class Oban:
             ...     print(f"Job state: {job.state}")
         """
         return await self._query.get_job(job_id)
+
+    async def all_jobs(self, *, limit: int = 1000) -> list[Job]:
+        """List jobs in any state, most recently enqueued first.
+
+        Finished jobs are included until the pruner deletes them.
+
+        Args:
+            limit: The most jobs to return
+
+        Returns:
+            Up to `limit` jobs, newest first
+
+        Raises:
+            TypeError: If limit isn't an integer
+            ValueError: If limit isn't positive
+
+        Example:
+            >>> jobs = await oban.all_jobs(limit=10)
+            >>> for job in jobs:
+            ...     print(job.id, job.worker, job.state)
+        """
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise TypeError(f"limit must be an integer, got {limit}")
+
+        if limit < 1:
+            raise ValueError(f"limit must be positive, got {limit}")
+
+        states = [state.value for state in JobState]
+
+        return await self._query.all_jobs(states, limit)
 
     async def retry_job(self, job: Job | int) -> None:
         """Retry a job by setting it as available for execution.

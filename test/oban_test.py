@@ -603,6 +603,36 @@ class TestStopQueue:
             await oban_2.stop()
 
 
+class TestAllJobs:
+    async def test_listing_jobs_newest_first_up_to_the_limit(self, oban_instance):
+        async with oban_instance() as oban:
+            first = await Worker.enqueue({"ref": 1})
+            second = await Worker.enqueue({"ref": 2})
+            third = await Worker.enqueue({"ref": 3})
+
+            await oban.cancel_job(second.id)
+
+            jobs = await oban.all_jobs()
+
+            assert [(job.id, job.state) for job in jobs] == [
+                (third.id, "available"),
+                (second.id, "cancelled"),
+                (first.id, "available"),
+            ]
+
+            jobs = await oban.all_jobs(limit=2)
+
+            assert [job.id for job in jobs] == [third.id, second.id]
+
+    async def test_limit_must_be_a_positive_integer(self, oban_instance):
+        async with oban_instance() as oban:
+            with pytest.raises(TypeError, match="limit must be an integer"):
+                await oban.all_jobs(limit=1.5)
+
+            with pytest.raises(ValueError, match="limit must be positive"):
+                await oban.all_jobs(limit=0)
+
+
 class TestRetryJob:
     @pytest.mark.oban(queues={"default": 1})
     async def test_retrying_a_job(self, oban_instance):
@@ -674,8 +704,7 @@ class TestDeleteAllJobs:
 
             assert await oban.delete_many_jobs([job_1.id, job_2]) == 2
 
-            assert await oban.get_job(job_1.id) is None
-            assert await oban.get_job(job_2.id) is None
+            assert await oban.all_jobs() == []
 
 
 class TestCancelJob:

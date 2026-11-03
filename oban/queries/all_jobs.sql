@@ -23,3 +23,5 @@ WHERE
   state = ANY(%(states)s)
 ORDER BY
   id DESC
+LIMIT
+  %(limit)s
