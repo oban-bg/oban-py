@@ -48,6 +48,13 @@ INSERTABLE_FIELDS = [
 # The `Job` class has errors, but we only insert a single `error` at one time.
 JSON_FIELDS = ["args", "error", "errors", "meta"]
 
+# Prefix all oban_ names except those Postgres never allows to be schema-qualified
+PREFIX_PATTERN = re.compile(
+    r"(\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"
+    r"|\bTRIGGER\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?)?\b(oban_\w+)",
+    re.IGNORECASE,
+)
+
 
 async def unwrap_connection(conn: ConnectionLike) -> AsyncConnection | AsyncCursor:
     # psycopg connection or cursor
@@ -195,10 +202,8 @@ class Query:
         sql = files(package).joinpath(path).read_text(encoding="utf-8")
 
         if apply_prefix:
-            sql = re.sub(
-                r"\b(oban_count_estimate|oban_insert|oban_job_state|oban_jobs|oban_leaders|oban_producers|oban_state_to_bit)\b",
-                rf"{prefix}.\1",
-                sql,
+            sql = PREFIX_PATTERN.sub(
+                lambda match: match[0] if match[1] else f"{prefix}.{match[2]}", sql
             )
 
         # SQL comes from bundled files, with only the configured prefix interpolated

@@ -65,6 +65,12 @@ class TestInstallSql:
         assert "isolated.oban_producers" in sql
         assert "isolated.oban_count_estimate" in sql
 
+    def test_leaving_declared_index_names_unprefixed(self):
+        sql = install_sql(prefix="isolated")
+
+        assert "CREATE INDEX IF NOT EXISTS oban_jobs_staging_index" in sql
+        assert "isolated.oban_jobs_staging_index" not in sql
+
 
 class TestUninstallSql:
     def test_contains_expected_schema_elements(self):
