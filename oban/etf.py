@@ -74,7 +74,8 @@ def encode(value: Any, *, compressed: bool = True) -> bytes:
     `:erlang.term_to_binary(value, [:compressed])`.
 
     Strings and bytes become binaries, `None` becomes `nil`, booleans and `Atom` become atoms,
-    tuples become tuples, lists become lists, and dicts become maps.
+    tuples become tuples, lists become lists, and dicts become maps. `Pid` and `Reference`
+    become pids and references.
 
     Raises:
         TypeError: If the value, or anything within it, has no Erlang term form.
@@ -166,6 +167,10 @@ def _encode(term: bytearray, value: Any) -> None:
         term.append(NEW_PID)
         _encode_atom(term, value.node)
         term += struct.pack(">III", value.id, value.serial, value.creation)
+    elif isinstance(value, Reference):
+        term += struct.pack(">BH", NEWER_REFERENCE, len(value.ids))
+        _encode_atom(term, value.node)
+        term += struct.pack(f">I{len(value.ids)}I", value.creation, *value.ids)
     else:
         raise TypeError(f"Cannot encode {_describe(value)} as an Erlang term")
 

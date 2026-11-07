@@ -22,6 +22,7 @@ class TestEncodeAndDecode:
             [{}, {"nested": {"list": [1, 2]}, 1: "one", Atom("key"): None}],
             ["oban" * 100, [{"key": "value"}] * 100],
             [Pid("oban@host", 1, 0, 2)],
+            [Reference("oban@host", (9, 11, 22), 2)],
         ],
         ids=[
             "small integers",
@@ -35,6 +36,7 @@ class TestEncodeAndDecode:
             "maps",
             "compressed terms",
             "pids",
+            "references",
         ],
     )
     def test_round_trips(self, values):
