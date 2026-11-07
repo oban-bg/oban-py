@@ -79,7 +79,7 @@ class Stager(Looper):
 
     async def start(self) -> None:
         self._listen_token = await self._notifier.listen(
-            "insert", self._on_notification, wait=False
+            "insert", self._on_notification
         )
         self._loop_task = asyncio.create_task(self._loop(), name="oban-stager")
 

@@ -6,7 +6,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from oban import Cancel, Record, Snooze, worker
+from oban import Cancel, Record, Snooze, _producer, worker
+from oban._extensions import _extensions
 from oban._recorded import decode_recorded
 
 from .helpers import with_backoff
@@ -295,6 +296,30 @@ class TestIntegration:
             await with_backoff(lambda: self.assert_processed(1))
             await with_backoff(lambda: self.assert_processed(2))
             await with_backoff(lambda: self.assert_processed(3))
+
+
+class TestStart:
+    @pytest.mark.oban(queues={"alpha": 1})
+    async def test_starts_the_notifier_before_producers_record_meta(
+        self, oban_instance, monkeypatch
+    ):
+        events = []
+        oban = oban_instance()
+        start = oban._notifier.start
+
+        async def notifier_start():
+            await start()
+            events.append("notifier")
+
+        def producer_init(producer):
+            events.append("init")
+            return _producer._init(producer)
+
+        monkeypatch.setattr(oban._notifier, "start", notifier_start)
+        monkeypatch.setitem(_extensions, "producer.init", producer_init)
+
+        async with oban:
+            assert events[:2] == ["notifier", "init"]
 
 
 class TestPauseAndResumeQueue:

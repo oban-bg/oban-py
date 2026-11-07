@@ -80,7 +80,7 @@ class Leader(Looper):
             return
 
         self._listen_token = await self._notifier.listen(
-            "leader", self._on_notification, wait=False
+            "leader", self._on_notification
         )
         self._loop_task = asyncio.create_task(self._loop(), name="oban-leader")
 

@@ -332,33 +332,33 @@ class Oban:
         if self._producers:
             await self._verify_structure()
 
-        if self._dispatcher:
-            await self._dispatcher.start()
-
-        tasks = [
+        services = [
+            self._listen_signal(),
             self._leader.start(),
             self._stager.start(),
             self._lifeline.start(),
             self._pruner.start(),
             self._refresher.start(),
             self._scheduler.start(),
+            self._notifier.start(),
         ]
 
+        if self._dispatcher:
+            services.append(self._dispatcher.start())
+
         if self._metrics:
-            tasks.append(self._metrics.start())
+            services.append(self._metrics.start())
 
-        for producer in self._producers.values():
-            tasks.append(producer.start())
+        await asyncio.gather(*services)
 
-        await asyncio.gather(*tasks)
-
-        self._signal_token = await self._notifier.listen(
-            "signal", self._on_signal, wait=False
+        await asyncio.gather(
+            *(producer.start() for producer in self._producers.values())
         )
 
-        await self._notifier.start()
-
         return self
+
+    async def _listen_signal(self) -> None:
+        self._signal_token = await self._notifier.listen("signal", self._on_signal)
 
     async def stop(self) -> None:
         """Stop the Oban instance and gracefully shut down all processes.
@@ -1193,6 +1193,8 @@ class Oban:
             return "any"
 
     async def _on_signal(self, _channel: str, payload: dict) -> None:
+        # Every listener receives the same payload, so pop from a copy
+        payload = dict(payload)
         ident = payload.pop("ident", "any")
 
         if ident != "any" and ident != f"{self._name}.{self._node}":

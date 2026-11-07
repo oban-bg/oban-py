@@ -182,9 +182,7 @@ class Producer(Looper):
                 meta=use_ext("producer.init", _init, self),
             )
 
-            self._listen_token = await self._notifier.listen(
-                "signal", self._on_signal, wait=False
-            )
+            self._listen_token = await self._notifier.listen("signal", self._on_signal)
 
             self._loop_task = asyncio.create_task(
                 self._loop(), name=f"oban-producer-{self._queue}"

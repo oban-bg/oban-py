@@ -97,23 +97,21 @@ class Notifier(Protocol):
         self,
         channel: str,
         callback: Callable[[str, dict], Any],
-        wait: bool = True,
         timeout: float | None = None,
     ) -> str:
         """Register a callback for a channel.
 
-        This may be called before start(), in which case the subscription is established when
-        the notifier starts.
+        Returns once the subscription is established and ready to receive notifications. When
+        called before start(), that happens as the notifier starts, so a listen awaited before
+        start() won't return until start() runs concurrently.
 
         Args:
             channel: Channel name to listen on
             callback: Sync or async function called when notification received.
                       Receives (channel, payload) as arguments where payload is a dict.
                       Async callbacks are executed in the background without blocking.
-            wait: If True, blocks until the subscription is fully established and ready to
-                  receive notifications. If False, returns immediately after registering.
-                  Defaults to True for test reliability.
-            timeout: Maximum time to wait when wait=True. None means no timeout.
+            timeout: Maximum time to wait for the subscription, or None to wait indefinitely.
+                     The subscription stays registered when the wait times out.
 
         Returns:
             Token (UUID string) used to unregister this subscription
@@ -219,7 +217,6 @@ class PostgresNotifier:
         self,
         channel: str,
         callback: Callable[[str, dict], Any],
-        wait: bool = True,
         timeout: float | None = None,
     ) -> str:
         token = str(uuid4())
@@ -231,7 +228,7 @@ class PostgresNotifier:
         self._tokens[token] = channel
         self._subscriptions[channel][token] = callback
 
-        if wait and channel in self._listen_events:
+        if channel in self._listen_events:
             await asyncio.wait_for(self._listen_events[channel].wait(), timeout=timeout)
 
         return token
