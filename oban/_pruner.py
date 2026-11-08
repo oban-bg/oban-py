@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from . import telemetry
+from . import _period, telemetry
 from ._extensions import use_ext
 from ._looper import Looper, sleep_until_stopped, stop_gracefully
 
@@ -39,7 +40,7 @@ class Pruner(Looper):
         >>> async with Oban(
         ...     conn=conn,
         ...     queues={"default": 10},
-        ...     pruner={"max_age": 86_400, "interval": 60.0, "limit": 20_000}
+        ...     pruner={"max_age": "1 day", "interval": 60.0, "limit": 20_000}
         ... ) as oban:
         ...     # Pruner runs automatically in the background
     """
@@ -49,10 +50,15 @@ class Pruner(Looper):
         *,
         query: Query,
         leader: Leader,
-        max_age: int = 86_400,
+        max_age: int | str | timedelta = 86_400,
         interval: float = 60.0,
         limit: int = 20_000,
     ) -> None:
+        try:
+            max_age = _period.to_seconds(max_age)
+        except ValueError as error:
+            raise ValueError(f"max_age is invalid: {error}") from None
+
         self._leader = leader
         self._max_age = max_age
         self._interval = interval
@@ -66,8 +72,6 @@ class Pruner(Looper):
 
     @staticmethod
     def _validate(*, max_age: int, interval: float, limit: int) -> None:
-        if not isinstance(max_age, int):
-            raise TypeError(f"max_age must be an integer, got {max_age}")
         if max_age <= 0:
             raise ValueError(f"max_age must be positive, got {max_age}")
 

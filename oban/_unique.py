@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 import orjson
 
+from . import _period
+
 if TYPE_CHECKING:
     from .job import Job
 
@@ -34,7 +36,7 @@ class UniqueOptions(TypedDict, total=False):
     fields: list[UniqueField]
     group: UniqueGroup
     keys: list[str] | None
-    period: int | timedelta | None
+    period: int | str | timedelta | None
 
 
 DEFAULT_UNIQUE = {
@@ -72,8 +74,11 @@ def normalize_unique(unique: Any) -> dict[str, Any] | None:
 
     unique = {**DEFAULT_UNIQUE, **unique}
 
-    if isinstance(unique["period"], timedelta):
-        unique["period"] = int(unique["period"].total_seconds())
+    if unique["period"] is not None:
+        try:
+            unique["period"] = _period.to_seconds(unique["period"])
+        except ValueError as error:
+            raise ValueError(f"unique period is invalid: {error}") from None
 
     _validate_unique(unique)
 
@@ -84,7 +89,6 @@ def _validate_unique(unique: dict[str, Any]) -> None:
     fields = unique["fields"]
     group = unique["group"]
     keys = unique["keys"]
-    period = unique["period"]
 
     if not isinstance(fields, list):
         raise TypeError(f"unique fields must be a list, got {fields!r}")
@@ -103,9 +107,6 @@ def _validate_unique(unique: dict[str, Any]) -> None:
 
         if keys and not {"args", "meta"} & set(fields):
             raise ValueError("unique keys require args or meta in fields")
-
-    if period is not None and (isinstance(period, bool) or not isinstance(period, int)):
-        raise ValueError(f"unique period must be an integer, got {period!r}")
 
 
 def unique_values(job: Job) -> list[tuple[str, Any]]:

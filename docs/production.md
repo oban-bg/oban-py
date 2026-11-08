@@ -25,7 +25,7 @@ You can adjust how long completed jobs are kept by configuring the pruner in `ob
 
 ```toml
 [pruner]
-max_age = 3600  # Keep jobs for 1 hour instead of 1 day
+max_age = "1 hour"  # Keep jobs for 1 hour instead of 1 day
 ```
 
 That's it! The CLI handles everything else automatically.
@@ -64,7 +64,7 @@ pool = await Oban.create_pool()
 oban = Oban(
     pool=pool,
     queues={"default": 10},
-    pruner={"max_age": 3_600},  # Keep jobs for 1 hour
+    pruner={"max_age": "1 hour"},  # Keep jobs for 1 hour
     lifeline={"interval": 30},  # Check for orphans every 30 seconds
 )
 ```

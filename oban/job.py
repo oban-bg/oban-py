@@ -227,7 +227,7 @@ class Job:
             scheduled_in: Alternative to scheduled_at. Timedelta or seconds from now
             schedule_in: Deprecated alias for scheduled_in, to be removed in 1.0
             unique: Prevent inserting duplicate jobs. Pass True for defaults, or a dict with
-                    fields, keys, group, and period. Stored in extra["unique"] (not persisted)
+                    fields, keys, group, and period (seconds, timedelta, or "5 minutes").
             extra: Extra data for runtime use (not persisted)
             _validate: Whether to validate and normalize (default: True)
 

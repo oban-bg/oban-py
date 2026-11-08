@@ -24,12 +24,13 @@ class TestPrunerValidation:
     def test_valid_config_passes(self):
         Pruner._validate(max_age=86_400, interval=60.0, limit=20_000)
 
-    def test_max_age_must_be_integer(self):
-        with pytest.raises(TypeError, match="max_age must be an integer"):
-            Pruner._validate(max_age=86_400.5, interval=60.0, limit=20_000)
+    def test_max_age_accepts_periods(self):
+        pruner = Pruner(query=None, leader=None, max_age="2 hours")
 
-        with pytest.raises(TypeError, match="max_age must be an integer"):
-            Pruner._validate(max_age="86400", interval=60.0, limit=20_000)
+        assert pruner._max_age == 7_200
+
+        with pytest.raises(ValueError, match="max_age is invalid"):
+            Pruner(query=None, leader=None, max_age="2 fortnights")
 
     def test_max_age_must_be_positive(self):
         with pytest.raises(ValueError, match="max_age must be positive"):

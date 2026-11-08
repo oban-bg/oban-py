@@ -79,7 +79,8 @@ class Oban:
                       that type. Pass {"type": "postgres", "beat_interval": 15.0} to tune the
                       default PostgreSQL notifier.
             prefix: PostgreSQL schema where Oban tables are located (default: "public")
-            pruner: Pruning config options: max_age in seconds (default: 86_400.0, 1 day),
+            pruner: Pruning config options: max_age as seconds, a timedelta, or a period
+                    like "1 day" (default: 86_400, 1 day),
                     interval (default: 60.0), limit (default: 20_000).
             queues: Queue names mapped to worker limits (default: {})
             refresher: Refresher config options: interval (default: 15.0), max_age (default: 60.0)

@@ -122,7 +122,7 @@ mailers = 5
 exports = 2
 
 [pruner]
-max_age = 3_600  # Prune completed jobs older than 1 hour
+max_age = "1 hour"  # Prune completed jobs older than 1 hour
 ```
 
 The queue values specify maximum concurrent jobs per queue. Configuration is loaded automatically

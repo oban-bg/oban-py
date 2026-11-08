@@ -157,6 +157,11 @@ class TestUnique:
         assert job.extra["unique"]["group"] == "successful"
         assert job.extra["unique"]["period"] == 3600
 
+    def test_converting_period_strings(self):
+        job = Job(worker="Worker", unique={"period": "2 days"})
+
+        assert job.extra["unique"]["period"] == 172_800
+
     def test_rejecting_invalid_options(self):
         for unique in [
             "yes",

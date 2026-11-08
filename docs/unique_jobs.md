@@ -6,8 +6,10 @@ constraints only apply when jobs are inserted. Uniqueness has no bearing on whet
 
 Uniqueness is based on a combination of job attributes using the following options:
 
-* **period** — The number of seconds from a job's scheduled time until it is no longer considered
-  a duplicate. Can be an integer or a `timedelta`. Defaults to `None`, where jobs are considered
+* **period** — How long from a job's scheduled time until it is no longer considered a duplicate.
+  Can be an integer number of seconds, a `timedelta`, or a period string such as `"5 minutes"`
+  or `"7 days"`. Supported units are `second`, `minute`, `hour`, `day`, `week`, and `month`
+  (always 30 days). Defaults to `None`, where jobs are considered
   duplicates for as long as they're retained in the database (see
   [Job Maintenance](job_maintenance.md)).
 
@@ -43,6 +45,9 @@ Uniqueness can also be set, overridden, or disabled for an individual job:
 
 ```python
 # Jobs are unique for 5 minutes
+await MyWorker.enqueue({"id": 1}, unique={"period": "5 minutes"})
+
+# A timedelta works as well
 await MyWorker.enqueue({"id": 1}, unique={"period": timedelta(minutes=5)})
 
 # Skip uniqueness for this job entirely
@@ -55,7 +60,7 @@ Here's a more complex example which uses multiple options:
 @worker(
     unique={
         # Jobs should be unique for 2 minutes after they're scheduled
-        "period": timedelta(minutes=2),
+        "period": "2 minutes",
         # Don't consider the whole args field, just the url key within args
         "keys": ["url"],
         # Consider a job unique across all states, including cancelled/discarded

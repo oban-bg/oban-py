@@ -19,17 +19,21 @@ You can customize pruning behavior in `oban.toml`:
 
 ```toml
 [pruner]
-max_age = 3_600 # Keep jobs for 1 hour
-limit = 50_000  # Delete up to 50k jobs per run
+max_age = "1 hour" # Keep jobs for 1 hour
+limit = 50_000     # Delete up to 50k jobs per run
 ```
 
 Or programmatically when running embedded:
 
 ```python
 oban = Oban(
-    pool=pool, queues={"default": 10}, pruner={"max_age": 3_600, "limit": 50_000}
+    pool=pool, queues={"default": 10}, pruner={"max_age": "1 hour", "limit": 50_000}
 )
 ```
+
+The `max_age` may be an integer number of seconds, a `timedelta`, or a period string such as
+`"30 minutes"` or `"7 days"`. Supported units are `second`, `minute`, `hour`, `day`, `week`, and
+`month` (always 30 days).
 
 ## Rescuing Jobs
 
