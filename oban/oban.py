@@ -34,6 +34,10 @@ QueueConfig = int | dict[str, Any]
 _instances: dict[str, Oban] = {}
 
 
+def _init_noop(_oban: Oban) -> None:
+    pass
+
+
 def _default_node() -> str:
     # Leadership is tracked by node name, so the pid keeps processes on one host distinct.
     return f"{socket.gethostname()}.{os.getpid()}"
@@ -203,6 +207,8 @@ class Oban:
             )
 
         self._signal_token = None
+
+        use_ext("oban.init", _init_noop, self)
 
         _instances[self._name] = self
 

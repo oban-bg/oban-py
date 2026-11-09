@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from oban import Cancel, Record, Snooze, _producer, telemetry, worker
 from oban._extensions import _extensions
 from oban._recorded import decode_recorded
+from oban.oban import _instances
 
 from .helpers import with_backoff
 
@@ -330,6 +331,32 @@ class TestStart:
 
         async with oban:
             assert events[:2] == ["notifier", "init"]
+
+
+class TestInitExtension:
+    async def test_init_extension_receives_the_instance(
+        self, oban_instance, monkeypatch
+    ):
+        initialized = []
+
+        monkeypatch.setitem(_extensions, "oban.init", initialized.append)
+
+        oban = oban_instance(name="Initialized")
+
+        assert initialized == [oban]
+
+    async def test_raising_in_init_prevents_construction(
+        self, oban_instance, monkeypatch
+    ):
+        def refuse(_oban):
+            raise RuntimeError("refused")
+
+        monkeypatch.setitem(_extensions, "oban.init", refuse)
+
+        with pytest.raises(RuntimeError, match="refused"):
+            oban_instance(name="Refused")
+
+        assert "Refused" not in _instances
 
 
 class TestPauseAndResumeQueue:
