@@ -278,6 +278,7 @@ class Metrics(Looper):
         started_at = check.started_at.isoformat() if check.started_at else None
 
         return {
+            **check.meta,
             "uuid": check.uuid,
             "node": check.node,
             "name": self._name,

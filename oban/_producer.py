@@ -22,6 +22,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _check(producer: Producer) -> QueueInfo:
+    return QueueInfo(
+        limit=producer._limit,
+        meta=producer._extra,
+        node=producer._node,
+        paused=producer._paused,
+        queue=producer._queue,
+        running=list(producer._running_jobs.keys()),
+        started_at=producer._started_at,
+        uuid=producer._uuid,
+    )
+
+
 def _init(producer: Producer) -> dict:
     return {"local_limit": producer._limit, "paused": producer._paused}
 
@@ -274,16 +287,7 @@ class Producer(Looper):
         self.notify()
 
     def check(self) -> QueueInfo:
-        return QueueInfo(
-            limit=self._limit,
-            meta=self._extra,
-            node=self._node,
-            paused=self._paused,
-            queue=self._queue,
-            running=list(self._running_jobs.keys()),
-            started_at=self._started_at,
-            uuid=self._uuid,
-        )
+        return use_ext("producer.check", _check, self)
 
     async def _loop(self) -> None:
         task = asyncio.current_task()
