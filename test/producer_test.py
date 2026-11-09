@@ -3,7 +3,8 @@ import asyncio
 import pytest
 
 from oban import Cancel, Job, telemetry, worker
-from oban._producer import LocalDispatcher, Producer
+from oban._extensions import _extensions, put_ext
+from oban._producer import LocalDispatcher, Producer, _get_jobs
 
 from .helpers import with_backoff
 
@@ -113,6 +114,30 @@ class TestProducerTelemetry:
         assert meta["count"] == 2
 
         telemetry.detach("test-producer")
+
+
+class TestPausedProducers:
+    @pytest.mark.oban(queues={"default": {"limit": 2, "paused": True}})
+    async def test_paused_producers_get_jobs_without_fetching(
+        self, oban_instance, monkeypatch
+    ):
+        calls = asyncio.Queue()
+
+        async def get_jobs(producer):
+            calls.put_nowait(producer._paused)
+
+            return await _get_jobs(producer)
+
+        monkeypatch.setitem(_extensions, "producer.get_jobs", None)
+        put_ext("producer.get_jobs", get_jobs)
+
+        async with oban_instance() as oban:
+            job = await oban.enqueue(Job(worker="Unused", queue="default"))
+
+            oban._producers["default"].notify()
+
+            assert await asyncio.wait_for(calls.get(), timeout=1.0) is True
+            await assert_state(oban, job.id, "available")
 
 
 class TestProducerAcks:

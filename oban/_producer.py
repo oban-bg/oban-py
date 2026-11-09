@@ -71,7 +71,7 @@ def _validate(*, queue: str, limit: int, **extra) -> None:
 async def _get_jobs(producer: Producer) -> list[Job]:
     demand = producer._limit - len(producer._running_jobs)
 
-    if demand > 0:
+    if demand > 0 and not producer._paused:
         return await producer._query.fetch_jobs(
             demand=demand,
             queue=producer._queue,
@@ -331,7 +331,7 @@ class Producer(Looper):
     async def _produce(self) -> None:
         await self._ack_jobs()
 
-        if self._paused or (self._limit - len(self._running_jobs)) <= 0:
+        if (self._limit - len(self._running_jobs)) <= 0:
             return
 
         jobs = await self._get_jobs()
