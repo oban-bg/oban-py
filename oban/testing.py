@@ -11,10 +11,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 
+from . import telemetry
 from ._executor import Executor
 from .job import Job, scheduled_from_now
 from .oban import Oban
-from .telemetry.core import scope
 from .worker import worker_name
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
@@ -337,7 +337,7 @@ async def drain_queue(
         "scheduled": 0,
     }
 
-    with scope(oban._name):
+    with telemetry.core.scope(oban._name):
         while True:
             if with_scheduled:
                 before = datetime.now(UTC) + FAR_FUTURE

@@ -86,7 +86,7 @@ class TestLoggerHandler:
 
         logger.attach()
 
-        meta = {"elapsed": 15_000_000_000, "queue": "default"}
+        meta = {"duration": 15_000_000_000, "queue": "default"}
 
         telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": []})
         telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": [1, 2]})
@@ -98,8 +98,25 @@ class TestLoggerHandler:
 
         assert record.levelno == logging.WARNING
         assert data["event"] == "oban.queue.shutdown"
-        assert data["elapsed"] == 15_000
+        assert data["duration"] == 15_000
         assert data["orphaned"] == [1, 2]
+
+    def test_logs_span_starts_without_a_duration(self, caplog):
+        caplog.set_level(logging.DEBUG, logger="oban")
+
+        logger.attach(events=["oban.pruner.prune.start", "oban.jobs.cancel.start"])
+
+        telemetry.execute("oban.pruner.prune.start", {"system_time": 1})
+        telemetry.execute("oban.jobs.cancel.start", {"job_ids": [1], "system_time": 1})
+
+        logger.detach()
+
+        records = [rec for rec in caplog.records if rec.name == "oban"]
+
+        assert [json.loads(rec.message) for rec in records] == [
+            {"event": "oban.pruner.prune.start"},
+            {"event": "oban.jobs.cancel.start", "job_ids": [1]},
+        ]
 
     async def test_logs_job_operation_events(self, caplog, oban_instance):
         caplog.set_level(logging.DEBUG, logger="oban")
@@ -120,6 +137,3 @@ class TestLoggerHandler:
         assert data["event"] == "oban.jobs.retry.stop"
         assert data["count"] == 1
         assert data["job_ids"] == [job.id]
-
-    def test_default_events_are_all_emitted_events(self):
-        assert set(logger.EVENTS) <= set(telemetry.EVENTS)

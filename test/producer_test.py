@@ -249,7 +249,7 @@ class TestProducerShutdown:
 
         assert meta["queue"] == "default"
         assert meta["orphaned"] == [job.id]
-        assert meta["elapsed"] > 0
+        assert meta["duration"] > 0
 
 
 class TestProducerCancellation:

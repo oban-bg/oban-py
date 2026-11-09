@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 
 async def _prune(query: Query, max_age: int, limit: int) -> None:
-    with telemetry.span("oban.pruner.prune", {}) as context:
+    with telemetry.span("oban.pruner.prune", {}) as collector:
         pruned = await query.prune_jobs(max_age, limit)
 
-        context.add({"pruned_count": pruned})
+        collector.add({"count": pruned})
 
 
 def build_pruner(config: dict[str, Any], *, leader: Leader, query: Query) -> Looper:

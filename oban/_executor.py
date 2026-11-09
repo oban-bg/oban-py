@@ -99,7 +99,6 @@ class Executor:
             "oban.job.start",
             {
                 "job": self.job,
-                "monotonic_time": self._start_time,
                 "system_time": time.time_ns(),
             },
         )
@@ -186,14 +185,12 @@ class Executor:
                 self.action = AckAction(job=self.job, state="completed")
 
     def _report_stopped(self) -> None:
-        stop_time = time.monotonic_ns()
-
         meta = {
-            "monotonic_time": stop_time,
-            "duration": stop_time - self._start_time,
+            "duration": time.monotonic_ns() - self._start_time,
             "queue_time": self._queue_time(),
             "job": self.job,
             "state": self.status,
+            "system_time": time.time_ns(),
         }
 
         if self.status in ("retryable", "discarded"):

@@ -370,14 +370,16 @@ class Scheduler(Looper):
     async def _evaluate(self, target: datetime) -> None:
         cron_at = target.isoformat()
 
-        with telemetry.span("oban.scheduler.evaluate", {"cron_at": cron_at}) as context:
+        with telemetry.span(
+            "oban.scheduler.evaluate", {"cron_at": cron_at}
+        ) as collector:
             jobs = [
                 self._build_job(entry, cron_at)
                 for entry in _scheduled_entries
                 if self._is_now(entry, target)
             ]
 
-            context.add({"enqueued_count": len(jobs)})
+            collector.add({"count": len(jobs)})
 
             if jobs:
                 result = await self._query.insert_jobs(jobs)

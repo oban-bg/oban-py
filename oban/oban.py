@@ -28,7 +28,6 @@ from ._refresher import build_refresher
 from ._scheduler import build_scheduler
 from ._stager import build_stager
 from .job import Job, JobState
-from .telemetry.core import scope
 
 QueueConfig = int | dict[str, Any]
 
@@ -43,7 +42,7 @@ def _default_node() -> str:
 def _scoped[F: Callable[..., Any]](func: F) -> F:
     @wraps(func)
     async def wrapper(self: Oban, *args: Any, **kwargs: Any) -> Any:
-        with scope(self._name):
+        with telemetry.core.scope(self._name):
             return await func(self, *args, **kwargs)
 
     return cast(F, wrapper)
@@ -516,13 +515,13 @@ class Oban:
         else:
             jobs = list(jobs_or_first)
 
-        with telemetry.span("oban.jobs.enqueue", {"jobs": jobs}) as context:
+        with telemetry.span("oban.jobs.enqueue", {"jobs": jobs}) as collector:
             if _get_mode() == "inline":
                 await self._execute_inline(jobs)
             else:
                 jobs = await self._query.insert_jobs(jobs, conn=conn)
 
-            context.add({"jobs": jobs, "count": len(jobs)})
+            collector.add({"jobs": jobs, "count": len(jobs)})
 
         return jobs
 
@@ -629,10 +628,10 @@ class Oban:
             >>> count = await oban.retry_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-        with telemetry.span("oban.jobs.retry", {"job_ids": job_ids}) as context:
+        with telemetry.span("oban.jobs.retry", {"job_ids": job_ids}) as collector:
             retried = await self._query.retry_many_jobs(job_ids)
 
-            context.add({"jobs": retried, "count": len(retried)})
+            collector.add({"jobs": retried, "count": len(retried)})
 
         return len(retried)
 
@@ -682,10 +681,10 @@ class Oban:
             >>> count = await oban.delete_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-        with telemetry.span("oban.jobs.delete", {"job_ids": job_ids}) as context:
+        with telemetry.span("oban.jobs.delete", {"job_ids": job_ids}) as collector:
             deleted = await self._query.delete_many_jobs(job_ids)
 
-            context.add({"jobs": deleted, "count": len(deleted)})
+            collector.add({"jobs": deleted, "count": len(deleted)})
 
         return len(deleted)
 
@@ -757,7 +756,7 @@ class Oban:
             >>> count = await oban.cancel_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-        with telemetry.span("oban.jobs.cancel", {"job_ids": job_ids}) as context:
+        with telemetry.span("oban.jobs.cancel", {"job_ids": job_ids}) as collector:
             cancelled = await self._query.cancel_many_jobs(job_ids)
 
             payloads = [
@@ -769,7 +768,7 @@ class Oban:
             if payloads:
                 await self._notifier.notify("signal", payloads)
 
-            context.add({"jobs": cancelled, "count": len(cancelled)})
+            collector.add({"jobs": cancelled, "count": len(cancelled)})
 
         return len(cancelled)
 
@@ -901,10 +900,10 @@ class Oban:
         job_ids = [job.id if isinstance(job, Job) else job for job in jobs]
         meta = {"job_ids": job_ids, "changes": changes}
 
-        with telemetry.span("oban.jobs.update", meta) as context:
+        with telemetry.span("oban.jobs.update", meta) as collector:
             updated = await self._query.update_many_jobs(job_ids, changes)
 
-            context.add({"jobs": updated, "count": len(updated)})
+            collector.add({"jobs": updated, "count": len(updated)})
 
         return updated
 

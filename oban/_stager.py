@@ -118,12 +118,12 @@ class Stager(Looper):
 
         await use_ext("stager.before_stage", self._noop, self._query)
 
-        with telemetry.span("oban.stager.stage", {}) as context:
+        with telemetry.span("oban.stager.stage", {}) as collector:
             queues = list(self._producers.keys())
 
             (staged, active) = await self._query.stage_jobs(self._limit, queues)
 
-            context.add({"staged_count": staged, "available_queues": active})
+            collector.add({"count": staged, "available_queues": active})
 
             for queue in active:
                 self._producers[queue].notify()

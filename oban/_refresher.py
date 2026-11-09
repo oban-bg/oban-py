@@ -86,7 +86,7 @@ class Refresher(Looper):
                 logger.exception("Error in refresher")
 
     async def _refresh(self) -> None:
-        with telemetry.span("oban.refresher.refresh", {}) as context:
+        with telemetry.span("oban.refresher.refresh", {}) as collector:
             producers = list(self._producers.values())
 
             if producers:
@@ -100,15 +100,13 @@ class Refresher(Looper):
             for producer in missing:
                 await producer.restore()
 
-            context.add(
-                {"refreshed_count": len(refreshed), "restored_count": len(missing)}
-            )
+            collector.add({"count": len(refreshed), "restored_count": len(missing)})
 
     async def _cleanup(self) -> None:
         if not self._leader.is_leader:
             return
 
-        with telemetry.span("oban.refresher.cleanup", {}) as context:
+        with telemetry.span("oban.refresher.cleanup", {}) as collector:
             cleaned_up = await self._query.cleanup_expired_producers(self._max_age)
 
-            context.add({"cleanup_count": cleaned_up})
+            collector.add({"count": cleaned_up})

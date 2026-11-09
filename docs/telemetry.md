@@ -67,7 +67,8 @@ job that emitted the event.
 
 Every event includes the `name` of the Oban instance that emitted it, so handlers can find the
 instance with `Oban.get_instance(name)`, or tell instances apart when running more than one. That
-includes custom spans emitted while a job runs.
+includes custom spans emitted while a job runs. Every event also includes a `system_time`, a
+timestamp in nanoseconds since the epoch.
 
 Remove a handler by its id with `telemetry.detach("job-metrics")`. Attaching with an id that's
 already in use adds another handler rather than replacing the first, so detach before attaching
@@ -91,15 +92,14 @@ if unknown:
 Each job emits `oban.job.start` when it starts running, followed by either `oban.job.stop` or
 `oban.job.exception` when it finishes:
 
-| Event                | Metadata                                                                 |
-| -------------------- | ------------------------------------------------------------------------ |
-| `oban.job.start`     | `job`, `monotonic_time`, `system_time`                                   |
-| `oban.job.stop`      | `job`, `state`, `duration`, `queue_time`, `monotonic_time`               |
-| `oban.job.exception` | `job`, `state`, `duration`, `queue_time`, `monotonic_time`, error fields |
+| Event                | Metadata                                              |
+| -------------------- | ----------------------------------------------------- |
+| `oban.job.start`     | `job`                                                 |
+| `oban.job.stop`      | `job`, `state`, `duration`, `queue_time`              |
+| `oban.job.exception` | `job`, `state`, `duration`, `queue_time`, error fields |
 
 The `duration` is how long the job ran, and `queue_time` how long it waited between when it was
-scheduled and when it started, both in nanoseconds. The `system_time` is a timestamp in
-nanoseconds since the epoch.
+scheduled and when it started, both in nanoseconds.
 
 Only failed attempts emit an exception event, with `state` as `retryable` or `discarded`, and the
 `error_type`, `error_message`, and `traceback` of the raised exception. Everything else emits a
@@ -126,28 +126,29 @@ telemetry.attach("job-errors", ["oban.job.exception"], report_error)
 Oban's background work reports itself as spans, emitting `.start` before each run, then `.stop`
 when it succeeds or `.exception` when it raises:
 
-| Prefix                    | Metadata                            |
-| ------------------------- | ----------------------------------- |
-| `oban.leader.election`    | `leader`                            |
-| `oban.lifeline.rescue`    | `rescued_count`                     |
-| `oban.metrics.broadcast`  |                                     |
-| `oban.producer.ack`       | `queue`, `count`                    |
-| `oban.producer.get`       | `queue`, `count`                    |
-| `oban.pruner.prune`       | `pruned_count`                      |
-| `oban.refresher.cleanup`  | `cleanup_count`                     |
-| `oban.refresher.refresh`  | `refreshed_count`, `restored_count` |
-| `oban.scheduler.evaluate` | `cron_at`, `enqueued_count`         |
-| `oban.stager.stage`       | `staged_count`, `available_queues`  |
+| Prefix                    | Metadata                    | Count Of                  |
+| ------------------------- | --------------------------- | ------------------------- |
+| `oban.leader.election`    | `leader`                    |                           |
+| `oban.lifeline.rescue`    | `count`                     | Jobs rescued              |
+| `oban.metrics.broadcast`  |                             |                           |
+| `oban.producer.ack`       | `queue`, `count`            | Jobs acknowledged         |
+| `oban.producer.get`       | `queue`, `count`            | Jobs fetched              |
+| `oban.pruner.prune`       | `count`                     | Jobs pruned               |
+| `oban.refresher.cleanup`  | `count`                     | Expired producers removed |
+| `oban.refresher.refresh`  | `count`, `restored_count`   | Producers refreshed       |
+| `oban.scheduler.evaluate` | `cron_at`, `count`          | Jobs enqueued             |
+| `oban.stager.stage`       | `count`, `available_queues` | Jobs staged               |
 
-Every event includes a `system_time`. Stop and exception events add the span's `duration` in
-nanoseconds, and exception events add the `error_type`, `error_message`, and `traceback`. Counts
-are only known once the work is done, so they're on the stop event rather than the start.
+Stop and exception events add the span's `duration` in nanoseconds, and exception events add the
+`error_type`, `error_message`, and `traceback`. Counts are only known once the work is done, so
+they're on the stop event rather than the start. The refresher's `restored_count` is how many of
+this node's producers were missing and recreated.
 
 For example, to track how many jobs the pruner deletes:
 
 ```python
 def record_pruned(_name, meta):
-    metrics.increment("oban.pruned", meta["pruned_count"])
+    metrics.increment("oban.pruned", meta["count"])
 
 
 telemetry.attach("pruner", ["oban.pruner.prune.stop"], record_pruned)
@@ -187,10 +188,10 @@ commits, so jobs from a transaction that later rolls back still appear in the ev
 
 ## Queue Shutdown
 
-Each queue emits `oban.queue.shutdown` as it stops, with the `queue`, the `elapsed` time in
-nanoseconds, and the `orphaned` ids of jobs still running when the grace period ended. Orphaned
-jobs are left for the lifeline to rescue, and the logger reports any shutdown that orphans jobs as
-a warning.
+Each queue emits `oban.queue.shutdown` as it stops, with the `queue`, the `duration` of the
+shutdown in nanoseconds, and the `orphaned` ids of jobs still running when the grace period ended.
+Orphaned jobs are left for the lifeline to rescue, and the logger reports any shutdown that orphans
+jobs as a warning.
 
 ## Custom Spans
 

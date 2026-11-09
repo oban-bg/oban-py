@@ -20,6 +20,60 @@ Metadata = dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
+# Attaching to an event that's never emitted fails silently, so integrations can validate their
+# subscriptions against this list.
+EVENTS = [
+    "oban.job.exception",
+    "oban.job.start",
+    "oban.job.stop",
+    "oban.jobs.cancel.exception",
+    "oban.jobs.cancel.start",
+    "oban.jobs.cancel.stop",
+    "oban.jobs.delete.exception",
+    "oban.jobs.delete.start",
+    "oban.jobs.delete.stop",
+    "oban.jobs.enqueue.exception",
+    "oban.jobs.enqueue.start",
+    "oban.jobs.enqueue.stop",
+    "oban.jobs.retry.exception",
+    "oban.jobs.retry.start",
+    "oban.jobs.retry.stop",
+    "oban.jobs.update.exception",
+    "oban.jobs.update.start",
+    "oban.jobs.update.stop",
+    "oban.leader.election.exception",
+    "oban.leader.election.start",
+    "oban.leader.election.stop",
+    "oban.lifeline.rescue.exception",
+    "oban.lifeline.rescue.start",
+    "oban.lifeline.rescue.stop",
+    "oban.metrics.broadcast.exception",
+    "oban.metrics.broadcast.start",
+    "oban.metrics.broadcast.stop",
+    "oban.producer.ack.exception",
+    "oban.producer.ack.start",
+    "oban.producer.ack.stop",
+    "oban.producer.get.exception",
+    "oban.producer.get.start",
+    "oban.producer.get.stop",
+    "oban.pruner.prune.exception",
+    "oban.pruner.prune.start",
+    "oban.pruner.prune.stop",
+    "oban.queue.shutdown",
+    "oban.refresher.cleanup.exception",
+    "oban.refresher.cleanup.start",
+    "oban.refresher.cleanup.stop",
+    "oban.refresher.refresh.exception",
+    "oban.refresher.refresh.start",
+    "oban.refresher.refresh.stop",
+    "oban.scheduler.evaluate.exception",
+    "oban.scheduler.evaluate.start",
+    "oban.scheduler.evaluate.stop",
+    "oban.stager.stage.exception",
+    "oban.stager.stage.start",
+    "oban.stager.stage.stop",
+]
+
 _handlers = defaultdict(list)
 _lock = RLock()
 

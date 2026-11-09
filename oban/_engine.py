@@ -8,9 +8,9 @@ from dataclasses import replace
 from multiprocessing import Queue
 from typing import TYPE_CHECKING
 
+from . import telemetry
 from ._executor import Executor
 from ._serialization import deserialize_command, serialize_result
-from .telemetry.core import scope
 
 if TYPE_CHECKING:
     from ._config import Config
@@ -68,7 +68,7 @@ async def _run(
         pool, oban = await _build_oban(conf)
 
         try:
-            with scope(oban._name):
+            with telemetry.core.scope(oban._name):
                 await _loop(pull_queue, push_queue, setup, teardown, generation)
         finally:
             await pool.close()

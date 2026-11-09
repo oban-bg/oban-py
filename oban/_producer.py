@@ -229,9 +229,10 @@ class Producer(Looper):
             telemetry.execute(
                 "oban.queue.shutdown",
                 {
-                    "elapsed": time.monotonic_ns() - shutdown_started,
+                    "duration": time.monotonic_ns() - shutdown_started,
                     "orphaned": orphaned,
                     "queue": self._queue,
+                    "system_time": time.time_ns(),
                 },
             )
 
@@ -340,7 +341,7 @@ class Producer(Looper):
             self._running_jobs[job.id] = (job, task)
 
     async def _ack_jobs(self):
-        with telemetry.span("oban.producer.ack", {"queue": self._queue}) as context:
+        with telemetry.span("oban.producer.ack", {"queue": self._queue}) as collector:
             acked_ids = []
 
             if self._pending_acks:
@@ -348,13 +349,13 @@ class Producer(Looper):
                 acked_ids = await self._query.ack_jobs(self._pending_acks[:count])
                 self._pending_acks = self._pending_acks[count:]
 
-            context.add({"count": len(acked_ids)})
+            collector.add({"count": len(acked_ids)})
 
     async def _get_jobs(self):
-        with telemetry.span("oban.producer.get", {"queue": self._queue}) as context:
+        with telemetry.span("oban.producer.get", {"queue": self._queue}) as collector:
             jobs = await use_ext("producer.get_jobs", _get_jobs, self)
 
-            context.add({"count": len(jobs)})
+            collector.add({"count": len(jobs)})
 
             return jobs
 

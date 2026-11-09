@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 
 
 async def _rescue(query: Query, rescue_after: float) -> None:
-    with telemetry.span("oban.lifeline.rescue", {}) as context:
+    with telemetry.span("oban.lifeline.rescue", {}) as collector:
         rescued = await query.rescue_jobs(rescue_after)
 
-        context.add({"rescued_count": rescued})
+        collector.add({"count": rescued})
 
 
 def build_lifeline(config: dict[str, Any], *, leader: Leader, query: Query) -> Looper:

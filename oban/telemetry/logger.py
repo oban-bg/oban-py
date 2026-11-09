@@ -5,41 +5,11 @@ import orjson
 
 from . import core
 
+# Successful work is logged when it stops, so only job starts are worth logging on their own
 EVENTS = [
-    "oban.job.exception",
-    "oban.job.start",
-    "oban.job.stop",
-    "oban.jobs.cancel.exception",
-    "oban.jobs.cancel.stop",
-    "oban.jobs.delete.exception",
-    "oban.jobs.delete.stop",
-    "oban.jobs.enqueue.exception",
-    "oban.jobs.enqueue.stop",
-    "oban.jobs.retry.exception",
-    "oban.jobs.retry.stop",
-    "oban.jobs.update.exception",
-    "oban.jobs.update.stop",
-    "oban.leader.election.exception",
-    "oban.leader.election.stop",
-    "oban.lifeline.rescue.exception",
-    "oban.lifeline.rescue.stop",
-    "oban.metrics.broadcast.exception",
-    "oban.metrics.broadcast.stop",
-    "oban.producer.ack.exception",
-    "oban.producer.ack.stop",
-    "oban.producer.get.exception",
-    "oban.producer.get.stop",
-    "oban.pruner.prune.exception",
-    "oban.pruner.prune.stop",
-    "oban.queue.shutdown",
-    "oban.refresher.cleanup.exception",
-    "oban.refresher.cleanup.stop",
-    "oban.refresher.refresh.exception",
-    "oban.refresher.refresh.stop",
-    "oban.scheduler.evaluate.exception",
-    "oban.scheduler.evaluate.stop",
-    "oban.stager.stage.exception",
-    "oban.stager.stage.stop",
+    name
+    for name in core.EVENTS
+    if name == "oban.job.start" or not name.endswith(".start")
 ]
 
 JOB_FIELDS = [
@@ -58,7 +28,7 @@ class _LoggerHandler:
     def __init__(
         self,
         *,
-        level: int = logging.DEBUG,
+        level: int,
         logger: logging.Logger | None = None,
     ):
         self.level = level
@@ -109,23 +79,27 @@ class _LoggerHandler:
         return data
 
     def _format_jobs_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
-        data = {"event": name, "duration": self._to_ms(meta["duration"])}
+        data = {"event": name}
 
-        if name.endswith(".exception"):
-            data["error_type"] = meta["error_type"]
-            data["error_message"] = meta["error_message"]
+        if "duration" in meta:
+            data["duration"] = self._to_ms(meta["duration"])
+
+        if name.endswith(".stop"):
+            data["count"] = meta["count"]
+            data["job_ids"] = [job.id for job in meta["jobs"]]
+        else:
+            if name.endswith(".exception"):
+                data["error_type"] = meta["error_type"]
+                data["error_message"] = meta["error_message"]
 
             if "job_ids" in meta:
                 data["job_ids"] = meta["job_ids"]
-        else:
-            data["count"] = meta["count"]
-            data["job_ids"] = [job.id for job in meta["jobs"]]
 
         return data
 
     def _format_shutdown_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         return {
-            "elapsed": self._to_ms(meta["elapsed"]),
+            "duration": self._to_ms(meta["duration"]),
             "event": name,
             "message": "jobs were orphaned because they didn't finish executing in the allotted time",
             "orphaned": meta["orphaned"],
@@ -135,7 +109,9 @@ class _LoggerHandler:
     def _format_loop_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         data = {key: val for key, val in meta.items() if key != "system_time"}
 
-        data["duration"] = self._to_ms(data["duration"])
+        if "duration" in data:
+            data["duration"] = self._to_ms(data["duration"])
+
         data["event"] = name
 
         return data
@@ -166,9 +142,11 @@ def attach(
     logging module.
 
     Args:
-        level: Logging level for .stop events (default: INFO)
+        level: Logging level for job events (default: INFO). Other events are logged at
+            DEBUG, or ERROR for exceptions, and queue shutdowns that orphan jobs at WARNING.
         logger: Custom logger instance (default: logging.getLogger("oban"))
-        events: Specific events to log (default: all job events)
+        events: Specific events to log (default: every event except span starts, other than
+            oban.job.start)
 
     Example:
         >>> import logging

@@ -120,7 +120,7 @@ class Leader(Looper):
         async with self._election_lock:
             meta = {"leader": self._is_leader}
 
-            with telemetry.span("oban.leader.election", meta) as context:
+            with telemetry.span("oban.leader.election", meta) as collector:
                 try:
                     self._is_leader = await self._query.attempt_leadership(
                         self._lease, self._node, int(self._interval)
@@ -133,7 +133,7 @@ class Leader(Looper):
 
                     raise
                 finally:
-                    context.add({"leader": self._is_leader})
+                    collector.add({"leader": self._is_leader})
 
     async def _on_notification(self, _channel: str, _payload: dict) -> None:
         await self._election()
