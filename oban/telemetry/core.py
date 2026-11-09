@@ -11,6 +11,7 @@ import traceback
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from threading import RLock
 from typing import Any
 
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 _handlers = defaultdict(list)
 _lock = RLock()
+
+# Tasks copy the context they're created in, so everything an instance starts tags its events
+_instance_name: ContextVar[str | None] = ContextVar("oban_instance_name", default=None)
 
 
 class Collector:
@@ -98,11 +102,24 @@ def execute(name: str, metadata: Metadata) -> None:
     with _lock:
         handlers = [handler for (_id, handler) in _handlers.get(name, [])]
 
+    if instance_name := _instance_name.get():
+        metadata = {"name": instance_name, **metadata}
+
     for handler in handlers:
         try:
             handler(name, metadata.copy())
         except Exception:
             logger.exception("Error in telemetry handler for event '%s'", name)
+
+
+@contextmanager
+def scope(instance_name: str):
+    token = _instance_name.set(instance_name)
+
+    try:
+        yield
+    finally:
+        _instance_name.reset(token)
 
 
 @contextmanager

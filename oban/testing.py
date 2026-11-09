@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from ._executor import Executor
 from .job import Job, scheduled_from_now
 from .oban import Oban
+from .telemetry.core import scope
 from .worker import worker_name
 
 _testing_mode = ContextVar[str | None]("oban_testing_mode", default=None)
@@ -336,29 +337,30 @@ async def drain_queue(
         "scheduled": 0,
     }
 
-    while True:
-        if with_scheduled:
-            before = datetime.now(UTC) + FAR_FUTURE
-            await oban._query.stage_jobs(limit=1000, queues=[queue], before=before)
+    with scope(oban._name):
+        while True:
+            if with_scheduled:
+                before = datetime.now(UTC) + FAR_FUTURE
+                await oban._query.stage_jobs(limit=1000, queues=[queue], before=before)
 
-        demand = 1 if with_recursion else None
-        jobs = await oban._query.fetch_jobs(
-            demand=demand, queue=queue, node="drain", uuid="drain"
-        )
+            demand = 1 if with_recursion else None
+            jobs = await oban._query.fetch_jobs(
+                demand=demand, queue=queue, node="drain", uuid="drain"
+            )
 
-        if not jobs:
-            break
+            if not jobs:
+                break
 
-        for job in jobs:
-            executor = await Executor(job=job, safe=with_safety).execute()
+            for job in jobs:
+                executor = await Executor(job=job, safe=with_safety).execute()
 
-            if executor.action is not None:
-                await oban._query.ack_jobs([executor.action])
+                if executor.action is not None:
+                    await oban._query.ack_jobs([executor.action])
 
-                summary[executor.action.state] += 1
+                    summary[executor.action.state] += 1
 
-        if not with_recursion:
-            break
+            if not with_recursion:
+                break
 
     return summary
 

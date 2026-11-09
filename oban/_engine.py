@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ._executor import Executor
 from ._serialization import deserialize_command, serialize_result
+from .telemetry.core import scope
 
 if TYPE_CHECKING:
     from ._config import Config
@@ -37,9 +38,9 @@ async def _build_oban(conf: Config):
     child_conf = replace(conf, queues={}, processes=None, pool_max_size=pool_max_size)
 
     pool = await child_conf.create_pool()
-    await child_conf.create_oban(pool)
+    oban = await child_conf.create_oban(pool)
 
-    return pool
+    return pool, oban
 
 
 def run(
@@ -52,10 +53,10 @@ def run(
 ) -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-    asyncio.run(_loop(pull_queue, push_queue, conf, setup, teardown, generation))
+    asyncio.run(_run(pull_queue, push_queue, conf, setup, teardown, generation))
 
 
-async def _loop(
+async def _run(
     pull_queue: Queue,
     push_queue: Queue,
     conf: Config | None,
@@ -63,8 +64,25 @@ async def _loop(
     teardown: str | None,
     generation: str,
 ) -> None:
-    pool = await _build_oban(conf) if conf and conf.dsn else None
+    if conf and conf.dsn:
+        pool, oban = await _build_oban(conf)
 
+        try:
+            with scope(oban._name):
+                await _loop(pull_queue, push_queue, setup, teardown, generation)
+        finally:
+            await pool.close()
+    else:
+        await _loop(pull_queue, push_queue, setup, teardown, generation)
+
+
+async def _loop(
+    pull_queue: Queue,
+    push_queue: Queue,
+    setup: str | None,
+    teardown: str | None,
+    generation: str,
+) -> None:
     if setup:
         await import_callable(setup)()
 
@@ -102,9 +120,6 @@ async def _loop(
 
         if teardown:
             await import_callable(teardown)()
-
-        if pool:
-            await pool.close()
 
 
 async def _execute(job, push_queue: Queue, generation: str) -> None:

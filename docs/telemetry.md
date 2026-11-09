@@ -65,6 +65,10 @@ Handlers are called synchronously, in the order they were attached, so keep them
 slow work off elsewhere. A handler that raises is logged, and doesn't affect other handlers or the
 job that emitted the event.
 
+Every event includes the `name` of the Oban instance that emitted it, so handlers can find the
+instance with `Oban.get_instance(name)`, or tell instances apart when running more than one. That
+includes custom spans emitted while a job runs.
+
 Remove a handler by its id with `telemetry.detach("job-metrics")`. Attaching with an id that's
 already in use adds another handler rather than replacing the first, so detach before attaching
 again.
@@ -163,9 +167,9 @@ retrying, report themselves as spans the same way background work does:
 | `oban.jobs.update`  | `update_job`, `update_many_jobs` | `job_ids`, `changes` |
 
 Single job functions emit the same events as their bulk counterparts. The requested `job_ids`
-include any ids that didn't match, while stop events add the `jobs` that were actually changed
-along with their `count`. Jobs that were skipped, such as a completed job that can't be cancelled,
-aren't included. For `update`, the `changes` are whatever was passed, either a dict or a callable.
+include any ids that didn't match, while stop events add the `jobs` that were actually changed along
+with their `count`. Jobs that were skipped, such as a completed job that can't be cancelled, aren't
+included. For `update`, the `changes` are whatever was passed, either a dict or a callable.
 
 For example, to record which jobs were cancelled:
 

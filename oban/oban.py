@@ -10,7 +10,8 @@ import asyncio
 import os
 import socket
 from collections.abc import Callable, Iterable
-from typing import Any, Self
+from functools import wraps
+from typing import Any, Self, cast
 
 from psycopg_pool import AsyncConnectionPool
 
@@ -27,6 +28,7 @@ from ._refresher import build_refresher
 from ._scheduler import build_scheduler
 from ._stager import build_stager
 from .job import Job, JobState
+from .telemetry.core import scope
 
 QueueConfig = int | dict[str, Any]
 
@@ -36,6 +38,15 @@ _instances: dict[str, Oban] = {}
 def _default_node() -> str:
     # Leadership is tracked by node name, so the pid keeps processes on one host distinct.
     return f"{socket.gethostname()}.{os.getpid()}"
+
+
+def _scoped[F: Callable[..., Any]](func: F) -> F:
+    @wraps(func)
+    async def wrapper(self: Oban, *args: Any, **kwargs: Any) -> Any:
+        with scope(self._name):
+            return await func(self, *args, **kwargs)
+
+    return cast(F, wrapper)
 
 
 class Oban:
@@ -305,6 +316,7 @@ class Oban:
     def _connection(self):
         return self._query.connection()
 
+    @_scoped
     async def start(self) -> Self:
         """Start the Oban instance and begin processing jobs.
 
@@ -362,6 +374,7 @@ class Oban:
     async def _listen_signal(self) -> None:
         self._signal_token = await self._notifier.listen("signal", self._on_signal)
 
+    @_scoped
     async def stop(self) -> None:
         """Stop the Oban instance and gracefully shut down all processes.
 
@@ -450,6 +463,7 @@ class Oban:
 
         return result[0]
 
+    @_scoped
     async def enqueue_many(
         self,
         jobs_or_first: Iterable[Job] | Job,
@@ -592,6 +606,7 @@ class Oban:
 
         await self.retry_many_jobs([job_id])
 
+    @_scoped
     async def retry_many_jobs(self, jobs: list[Job | int]) -> int:
         """Retry multiple jobs by setting them as available for execution.
 
@@ -614,7 +629,6 @@ class Oban:
             >>> count = await oban.retry_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-
         with telemetry.span("oban.jobs.retry", {"job_ids": job_ids}) as context:
             retried = await self._query.retry_many_jobs(job_ids)
 
@@ -646,6 +660,7 @@ class Oban:
 
         await self.delete_many_jobs([job_id])
 
+    @_scoped
     async def delete_many_jobs(self, jobs: list[Job | int]) -> int:
         """Delete multiple jobs from the database.
 
@@ -667,7 +682,6 @@ class Oban:
             >>> count = await oban.delete_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-
         with telemetry.span("oban.jobs.delete", {"job_ids": job_ids}) as context:
             deleted = await self._query.delete_many_jobs(job_ids)
 
@@ -710,6 +724,7 @@ class Oban:
 
         await self.cancel_many_jobs([job_id])
 
+    @_scoped
     async def cancel_many_jobs(self, jobs: list[Job | int]) -> int:
         """Cancel multiple jobs to prevent them from running.
 
@@ -742,7 +757,6 @@ class Oban:
             >>> count = await oban.cancel_many_jobs([job_1, job_2, job_3])
         """
         job_ids = [self._extract_id(job) for job in jobs]
-
         with telemetry.span("oban.jobs.cancel", {"job_ids": job_ids}) as context:
             cancelled = await self._query.cancel_many_jobs(job_ids)
 
@@ -825,6 +839,7 @@ class Oban:
 
         return result[0]
 
+    @_scoped
     async def update_many_jobs(
         self,
         jobs: list[Job | int],
@@ -893,6 +908,7 @@ class Oban:
 
         return updated
 
+    @_scoped
     async def pause_queue(self, queue: str, *, node: str | None = None) -> None:
         """Pause a queue, preventing it from executing new jobs.
 
@@ -924,6 +940,7 @@ class Oban:
                 "signal", {"action": "pause", "queue": queue, "ident": ident}
             )
 
+    @_scoped
     async def resume_queue(self, queue: str, *, node: str | None = None) -> None:
         """Resume a paused queue, allowing it to execute jobs again.
 
@@ -953,6 +970,7 @@ class Oban:
                 "signal", {"action": "resume", "queue": queue, "ident": ident}
             )
 
+    @_scoped
     async def pause_all_queues(self, *, node: str | None = None) -> None:
         """Pause all queues, preventing them from executing new jobs.
 
@@ -981,6 +999,7 @@ class Oban:
                 "signal", {"action": "pause", "queue": "*", "ident": ident}
             )
 
+    @_scoped
     async def resume_all_queues(self, *, node: str | None = None) -> None:
         """Resume all paused queues, allowing them to execute jobs again.
 
@@ -1053,6 +1072,7 @@ class Oban:
         """
         return [producer.check() for producer in self._producers.values()]
 
+    @_scoped
     async def start_queue(
         self,
         *,
@@ -1127,6 +1147,7 @@ class Oban:
 
         await producer.start()
 
+    @_scoped
     async def stop_queue(self, queue: str, *, node: str | None = None) -> None:
         """Stop a supervised queue.
 
@@ -1161,6 +1182,7 @@ class Oban:
         if producer:
             await producer.stop()
 
+    @_scoped
     async def scale_queue(
         self, *, queue: str, node: str | None = None, **kwargs: Any
     ) -> None:

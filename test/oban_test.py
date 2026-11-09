@@ -148,6 +148,12 @@ class TestIntegration:
 
     @pytest.mark.oban(queues={"default": 2})
     async def test_inserting_and_executing_jobs(self, oban_instance):
+        names = set()
+
+        telemetry.attach(
+            "test-names", ["oban.job.stop"], lambda _, meta: names.add(meta["name"])
+        )
+
         async with oban_instance() as oban:
             job_1 = await Worker.enqueue({"act": "ok", "ref": 1})
             job_2 = await Worker.enqueue({"act": "er", "ref": 2})
@@ -166,6 +172,10 @@ class TestIntegration:
             await with_backoff(lambda: assert_state(oban, job_3.id, "cancelled"))
             await with_backoff(lambda: assert_state(oban, job_4.id, "scheduled"))
             await with_backoff(lambda: assert_state(oban, job_5.id, "discarded"))
+
+        telemetry.detach("test-names")
+
+        assert names == {oban._name}
 
     @pytest.mark.oban(queues={"alpha": 1, "gamma": 1})
     async def test_limiting_concurrent_execution(self, oban_instance):
@@ -809,6 +819,7 @@ class TestCancelAllJobs:
 
         [meta] = events
 
+        assert meta["name"] == oban._name
         assert meta["job_ids"] == ids
         assert meta["count"] == 2
         assert {job.id for job in meta["jobs"]} == {job_1.id, job_2.id}

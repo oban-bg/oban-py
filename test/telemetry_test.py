@@ -69,6 +69,21 @@ class TestTelemetryExecute:
         [(_, metadata)] = calls
         assert metadata == {"data": "test"}
 
+    def test_scope_adds_instance_name(self):
+        calls = []
+
+        telemetry.attach(
+            "test-handler", ["test.event"], lambda _, meta: calls.append(meta)
+        )
+
+        with telemetry.core.scope("Oban"):
+            telemetry.execute("test.event", {})
+
+        telemetry.execute("test.event", {})
+        telemetry.detach("test-handler")
+
+        assert calls == [{"name": "Oban"}, {}]
+
 
 class TestTelemetrySpan:
     def test_span_emits_start_and_stop_events(self):
