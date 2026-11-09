@@ -9,6 +9,16 @@ EVENTS = [
     "oban.job.exception",
     "oban.job.start",
     "oban.job.stop",
+    "oban.jobs.cancel.exception",
+    "oban.jobs.cancel.stop",
+    "oban.jobs.delete.exception",
+    "oban.jobs.delete.stop",
+    "oban.jobs.enqueue.exception",
+    "oban.jobs.enqueue.stop",
+    "oban.jobs.retry.exception",
+    "oban.jobs.retry.stop",
+    "oban.jobs.update.exception",
+    "oban.jobs.update.stop",
     "oban.leader.election.exception",
     "oban.leader.election.stop",
     "oban.lifeline.rescue.exception",
@@ -65,8 +75,10 @@ class _LoggerHandler:
         self.logger.log(level, message)
 
     def _format_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
-        if name.startswith("oban.job"):
+        if name.startswith("oban.job."):
             return self._format_job_event(name, meta)
+        elif name.startswith("oban.jobs."):
+            return self._format_jobs_event(name, meta)
         elif name == "oban.queue.shutdown":
             return self._format_shutdown_event(name, meta)
         else:
@@ -96,6 +108,21 @@ class _LoggerHandler:
 
         return data
 
+    def _format_jobs_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
+        data = {"event": name, "duration": self._to_ms(meta["duration"])}
+
+        if name.endswith(".exception"):
+            data["error_type"] = meta["error_type"]
+            data["error_message"] = meta["error_message"]
+
+            if "job_ids" in meta:
+                data["job_ids"] = meta["job_ids"]
+        else:
+            data["count"] = meta["count"]
+            data["job_ids"] = [job.id for job in meta["jobs"]]
+
+        return data
+
     def _format_shutdown_event(self, name: str, meta: dict[str, Any]) -> dict[str, Any]:
         return {
             "elapsed": self._to_ms(meta["elapsed"]),
@@ -114,7 +141,7 @@ class _LoggerHandler:
         return data
 
     def _get_level(self, name: str) -> int:
-        if name.startswith("oban.job"):
+        if name.startswith("oban.job."):
             return self.level
         elif name == "oban.queue.shutdown":
             return logging.WARNING

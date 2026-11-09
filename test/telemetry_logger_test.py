@@ -101,5 +101,25 @@ class TestLoggerHandler:
         assert data["elapsed"] == 15_000
         assert data["orphaned"] == [1, 2]
 
+    async def test_logs_job_operation_events(self, caplog, oban_instance):
+        caplog.set_level(logging.DEBUG, logger="oban")
+
+        logger.attach()
+
+        async with oban_instance() as oban:
+            job = await SuccessWorker.enqueue(state="completed")
+
+            await oban.retry_many_jobs([job.id, 99999])
+
+        logger.detach()
+
+        [record] = [rec for rec in caplog.records if "oban.jobs.retry" in rec.message]
+        data = json.loads(record.message)
+
+        assert record.levelno == logging.DEBUG
+        assert data["event"] == "oban.jobs.retry.stop"
+        assert data["count"] == 1
+        assert data["job_ids"] == [job.id]
+
     def test_default_events_are_all_emitted_events(self):
         assert set(logger.EVENTS) <= set(telemetry.EVENTS)

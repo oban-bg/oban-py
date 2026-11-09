@@ -14,6 +14,7 @@ from typing import Any, Self
 
 from psycopg_pool import AsyncConnectionPool
 
+from . import telemetry
 from ._extensions import use_ext
 from ._leader import build_leader
 from ._lifeline import build_lifeline
@@ -501,12 +502,15 @@ class Oban:
         else:
             jobs = list(jobs_or_first)
 
-        if _get_mode() == "inline":
-            await self._execute_inline(jobs)
+        with telemetry.span("oban.jobs.enqueue", {"jobs": jobs}) as context:
+            if _get_mode() == "inline":
+                await self._execute_inline(jobs)
+            else:
+                jobs = await self._query.insert_jobs(jobs, conn=conn)
 
-            return jobs
+            context.add({"jobs": jobs, "count": len(jobs)})
 
-        return await self._query.insert_jobs(jobs, conn=conn)
+        return jobs
 
     async def _execute_inline(self, jobs):
         from .testing import process_job
@@ -611,7 +615,12 @@ class Oban:
         """
         job_ids = [self._extract_id(job) for job in jobs]
 
-        return await self._query.retry_many_jobs(job_ids)
+        with telemetry.span("oban.jobs.retry", {"job_ids": job_ids}) as context:
+            retried = await self._query.retry_many_jobs(job_ids)
+
+            context.add({"jobs": retried, "count": len(retried)})
+
+        return len(retried)
 
     async def delete_job(self, job: Job | int) -> None:
         """Delete a job from the database.
@@ -659,7 +668,12 @@ class Oban:
         """
         job_ids = [self._extract_id(job) for job in jobs]
 
-        return await self._query.delete_many_jobs(job_ids)
+        with telemetry.span("oban.jobs.delete", {"job_ids": job_ids}) as context:
+            deleted = await self._query.delete_many_jobs(job_ids)
+
+            context.add({"jobs": deleted, "count": len(deleted)})
+
+        return len(deleted)
 
     async def cancel_job(self, job: Job | int) -> None:
         """Cancel a job to prevent it from running.
@@ -729,14 +743,21 @@ class Oban:
         """
         job_ids = [self._extract_id(job) for job in jobs]
 
-        count, executing_ids = await self._query.cancel_many_jobs(job_ids)
+        with telemetry.span("oban.jobs.cancel", {"job_ids": job_ids}) as context:
+            cancelled = await self._query.cancel_many_jobs(job_ids)
 
-        if executing_ids:
-            payloads = [{"action": "pkill", "job_id": id} for id in executing_ids]
+            payloads = [
+                {"action": "pkill", "job_id": job.id}
+                for job in cancelled
+                if job.state == "executing"
+            ]
 
-            await self._notifier.notify("signal", payloads)
+            if payloads:
+                await self._notifier.notify("signal", payloads)
 
-        return count
+            context.add({"jobs": cancelled, "count": len(cancelled)})
+
+        return len(cancelled)
 
     async def update_job(
         self, job: Job | int, changes: dict[str, Any] | Callable[[Job], dict[str, Any]]
@@ -863,8 +884,14 @@ class Oban:
             ... )
         """
         job_ids = [job.id if isinstance(job, Job) else job for job in jobs]
+        meta = {"job_ids": job_ids, "changes": changes}
 
-        return await self._query.update_many_jobs(job_ids, changes)
+        with telemetry.span("oban.jobs.update", meta) as context:
+            updated = await self._query.update_many_jobs(job_ids, changes)
+
+            context.add({"jobs": updated, "count": len(updated)})
+
+        return updated
 
     async def pause_queue(self, queue: str, *, node: str | None = None) -> None:
         """Pause a queue, preventing it from executing new jobs.

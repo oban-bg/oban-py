@@ -149,6 +149,38 @@ def record_pruned(_name, meta):
 telemetry.attach("pruner", ["oban.pruner.prune.stop"], record_pruned)
 ```
 
+## Job Operation Events
+
+Operations that change jobs from outside of execution, such as enqueueing, cancelling, or
+retrying, report themselves as spans the same way background work does:
+
+| Prefix              | Called By                        | Start Metadata       |
+| ------------------- | -------------------------------- | -------------------- |
+| `oban.jobs.cancel`  | `cancel_job`, `cancel_many_jobs` | `job_ids`            |
+| `oban.jobs.delete`  | `delete_job`, `delete_many_jobs` | `job_ids`            |
+| `oban.jobs.enqueue` | `enqueue`, `enqueue_many`        | `jobs`               |
+| `oban.jobs.retry`   | `retry_job`, `retry_many_jobs`   | `job_ids`            |
+| `oban.jobs.update`  | `update_job`, `update_many_jobs` | `job_ids`, `changes` |
+
+Single job functions emit the same events as their bulk counterparts. The requested `job_ids`
+include any ids that didn't match, while stop events add the `jobs` that were actually changed
+along with their `count`. Jobs that were skipped, such as a completed job that can't be cancelled,
+aren't included. For `update`, the `changes` are whatever was passed, either a dict or a callable.
+
+For example, to record which jobs were cancelled:
+
+```python
+def record_cancelled(_name, meta):
+    for job in meta["jobs"]:
+        audit_log.write("cancelled", job_id=job.id, worker=job.worker)
+
+
+telemetry.attach("job-audit", ["oban.jobs.cancel.stop"], record_cancelled)
+```
+
+Inserting with a `conn` emits the stop event once the insert runs, before your transaction
+commits, so jobs from a transaction that later rolls back still appear in the event.
+
 ## Queue Shutdown
 
 Each queue emits `oban.queue.shutdown` as it stops, with the `queue`, the `elapsed` time in

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from oban import Cancel, Record, Snooze, _producer, worker
+from oban import Cancel, Record, Snooze, _producer, telemetry, worker
 from oban._extensions import _extensions
 from oban._recorded import decode_recorded
 
@@ -785,14 +785,34 @@ class TestCancelJob:
 class TestCancelAllJobs:
     @pytest.mark.oban()
     async def test_cancelling_multiple_jobs(self, oban_instance):
+        events = []
+
+        telemetry.attach(
+            "test-cancel",
+            ["oban.jobs.cancel.stop"],
+            lambda _name, meta: events.append(meta),
+        )
+
         async with oban_instance() as oban:
             job_1 = await Worker.enqueue()
             job_2 = await Worker.enqueue()
+            job_3 = await Worker.enqueue(state="completed")
 
-            assert await oban.cancel_many_jobs([job_1.id, job_2.id]) == 2
+            ids = [job_1.id, job_2.id, job_3.id]
+
+            assert await oban.cancel_many_jobs(ids) == 2
 
             await assert_state(oban, job_1.id, "cancelled")
             await assert_state(oban, job_2.id, "cancelled")
+
+        telemetry.detach("test-cancel")
+
+        [meta] = events
+
+        assert meta["job_ids"] == ids
+        assert meta["count"] == 2
+        assert {job.id for job in meta["jobs"]} == {job_1.id, job_2.id}
+        assert {job.state for job in meta["jobs"]} == {"cancelled"}
 
 
 class TestUpdateJob:

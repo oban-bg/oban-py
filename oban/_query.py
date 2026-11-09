@@ -274,26 +274,11 @@ class Query:
             result = await conn.execute(stmt, {"states": Jsonb(states)})
             return await result.fetchall()
 
-    async def cancel_many_jobs(self, ids: list[int]) -> tuple[int, list[int]]:
-        async with self._pool.connection() as conn, conn.transaction():
-            stmt = self._load_file("cancel_many_jobs.sql", self._prefix)
-            args = {"ids": ids}
+    async def cancel_many_jobs(self, ids: list[int]) -> list[Job]:
+        return await self._modify_jobs("cancel_many_jobs.sql", ids)
 
-            result = await conn.execute(stmt, args)
-            rows = await result.fetchall()
-
-            executing_ids = [row[0] for row in rows if row[1] == "executing"]
-
-            return len(rows), executing_ids
-
-    async def delete_many_jobs(self, ids: list[int]) -> int:
-        async with self._pool.connection() as conn, conn.transaction():
-            stmt = self._load_file("delete_many_jobs.sql", self._prefix)
-            args = {"ids": ids}
-
-            result = await conn.execute(stmt, args)
-
-            return result.rowcount
+    async def delete_many_jobs(self, ids: list[int]) -> list[Job]:
+        return await self._modify_jobs("delete_many_jobs.sql", ids)
 
     async def get_job(self, job_id: int) -> Job | None:
         async with self._pool.connection() as conn:
@@ -339,14 +324,8 @@ class Query:
 
             return result.rowcount
 
-    async def retry_many_jobs(self, ids: list[int]) -> int:
-        async with self._pool.connection() as conn, conn.transaction():
-            stmt = self._load_file("retry_many_jobs.sql", self._prefix)
-            args = {"ids": ids}
-
-            result = await conn.execute(stmt, args)
-
-            return result.rowcount
+    async def retry_many_jobs(self, ids: list[int]) -> list[Job]:
+        return await self._modify_jobs("retry_many_jobs.sql", ids)
 
     async def stage_jobs(
         self, limit: int, queues: list[str], before: datetime | None = None
@@ -412,6 +391,15 @@ class Query:
                 job.worker = row[8]
 
             return jobs
+
+    async def _modify_jobs(self, file: str, ids: list[int]) -> list[Job]:
+        async with self._pool.connection() as conn, conn.transaction():
+            stmt = self._load_file(file, self._prefix)
+
+            async with conn.cursor(row_factory=class_row(Job)) as cur:
+                await cur.execute(stmt, {"ids": ids})
+
+                return await cur.fetchall()
 
     # Leadership
 
