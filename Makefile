@@ -1,7 +1,7 @@
 .PHONY: bench check ci fix format hooks precommit test
 .PHONY: db-reset db-setup db-teardown
-.PHONY: docs docs-clean docs-publish docs-serve
-.PHONY: help release release-notes
+.PHONY: docs docs-clean docs-serve
+.PHONY: help release release-docs release-notes
 
 API_BASE ?= https://oban.pro
 DSN_BASE ?= postgresql://postgres@localhost
@@ -18,13 +18,13 @@ help:
 	@echo "  db-teardown  - Uninstall schema and drop test database"
 	@echo "  docs         - Build HTML documentation"
 	@echo "  docs-clean   - Clean built documentation"
-	@echo "  docs-publish - Publish documentation"
 	@echo "  docs-serve   - Serve documentation locally on port 8000"
 	@echo "  fix          - Fix linting issues automatically"
 	@echo "  format       - Format code with ruff"
 	@echo "  hooks        - Install git hooks from .githooks"
 	@echo "  precommit    - Run pre-commit checks (alias for ci)"
 	@echo "  release      - Build and publish a release (requires VERSION=x.y.z)"
+	@echo "  release-docs - Publish documentation"
 	@echo "  release-notes - Print CHANGELOG notes for a release (requires VERSION=x.y.z)"
 	@echo "  test         - Run tests with pytest"
 
@@ -59,7 +59,7 @@ endif
 	uv publish
 	git push origin main --tags
 	$(MAKE) --silent --no-print-directory release-notes | gh release create v$(VERSION) --verify-tag --title "v$(VERSION)" --notes-file -
-	$(MAKE) docs-publish
+	$(MAKE) release-docs
 
 release-notes:
 ifndef VERSION
@@ -84,7 +84,7 @@ docs-serve:
 docs-clean:
 	rm -rf docs/_build
 
-docs-publish: docs
+release-docs: docs
 	$(eval VERSION := $(shell grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/'))
 	@echo "Publishing docs for oban-py v$(VERSION)..."
 	@(cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='locales' --exclude='*.map' --exclude='*.ttf' *)
