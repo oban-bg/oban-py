@@ -7,6 +7,7 @@ API_BASE ?= https://oban.pro
 DSN_BASE ?= postgresql://postgres@localhost
 TEST_DB = oban_py_test
 TEST_DSN = $(DSN_BASE)/$(TEST_DB)
+NOTES = awk -v heading="\#\# v$(VERSION) " 'index($$0, "\#\# v") == 1 { found = index($$0, heading) == 1; next } found' CHANGELOG.md
 
 help:
 	@echo "Available targets:"
@@ -50,6 +51,7 @@ release: ci
 ifndef VERSION
 	$(error VERSION is required. Usage: make release VERSION=x.y.z)
 endif
+	@[ -n "$$($(NOTES))" ] || { echo "No notes found for v$(VERSION) in CHANGELOG.md"; exit 1; }
 	rm -rf dist
 	uv version $(VERSION)
 	git add pyproject.toml uv.lock CHANGELOG.md
@@ -58,14 +60,14 @@ endif
 	uv build
 	uv publish
 	git push origin main --tags
-	$(MAKE) --silent --no-print-directory release-notes | gh release create v$(VERSION) --verify-tag --title "v$(VERSION)" --notes-file -
+	$(NOTES) | gh release create v$(VERSION) --verify-tag --title "v$(VERSION)" --notes-file -
 	$(MAKE) release-docs
 
 release-notes:
 ifndef VERSION
 	$(error VERSION is required. Usage: make release-notes VERSION=x.y.z)
 endif
-	@awk -v heading="## v$(VERSION) " 'index($$0, "## v") == 1 { found = index($$0, heading) == 1; next } found' CHANGELOG.md
+	@$(NOTES)
 
 test:
 	uv run pytest -n 4
@@ -88,7 +90,7 @@ release-docs: docs
 	$(eval VERSION := $(shell grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/'))
 	@echo "Publishing docs for oban-py v$(VERSION)..."
 	@(cd docs/_build && COPYFILE_DISABLE=1 tar -czf /tmp/oban-py-docs.tar.gz --exclude='locales' --exclude='*.map' --exclude='*.ttf' *)
-	@curl -s -X POST "$(API_BASE)/releases" \
+	@curl -sS --fail-with-body -X POST "$(API_BASE)/releases" \
 		-H "Authorization: Bearer $$LYS_API_KEY" \
 		-F "package=py" \
 		-F "version=$(VERSION)" \
