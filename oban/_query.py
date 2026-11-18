@@ -503,7 +503,7 @@ class Query:
 
     async def notify(self, channel: str, payloads: list[str]) -> None:
         async with self._pool.connection() as conn:
-            await conn.execute(
-                "SELECT pg_notify(%s, payload) FROM json_array_elements_text(%s::json) AS payload",
-                (channel, Jsonb(payloads)),
-            )
+            stmt = self._load_file("notify.sql", self._prefix)
+            args = {"channel": channel, "payloads": Jsonb(payloads)}
+
+            await conn.execute(stmt, args)
