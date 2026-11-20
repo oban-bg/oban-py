@@ -170,6 +170,7 @@ The returned `QueueInfo` includes:
 | `node`       | The node where this queue is running       |
 | `started_at` | When the queue was started                 |
 | `meta`       | Queue metadata including extension options |
+| `uuid`       | Unique identifier for this producer        |
 
 Note that `check_queue` returns `None` if the queue isn't running on the current node, while
 `check_all_queues` returns an empty list if no queues are running locally.
