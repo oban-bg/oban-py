@@ -413,7 +413,6 @@ class Oban:
             self._stager.stop(),
             self._lifeline.stop(),
             self._pruner.stop(),
-            self._refresher.stop(),
             self._scheduler.stop(),
             self._notifier.stop(),
         ]
@@ -425,6 +424,9 @@ class Oban:
             tasks.append(producer.stop())
 
         await asyncio.gather(*tasks)
+
+        # Stopped after producers, or their records could expire while they wait on running jobs
+        await self._refresher.stop()
 
         if self._dispatcher:
             await self._dispatcher.stop()

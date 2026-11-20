@@ -153,6 +153,7 @@ class Producer(Looper):
         **extra,
     ) -> None:
         self._debounce_interval = debounce_interval
+        self._deregistered = False
         self._dispatcher = dispatcher or LocalDispatcher()
         self._extra = extra
         self._limit = limit
@@ -202,6 +203,9 @@ class Producer(Looper):
             )
 
     async def restore(self) -> None:
+        if self._deregistered:
+            return
+
         await self._query.insert_producer(
             uuid=self._uuid,
             name=self._name,
@@ -253,6 +257,8 @@ class Producer(Looper):
                 await self._ack_jobs()
             except Exception:
                 logger.debug("Failed to flush ACKs for %s during shutdown", self._uuid)
+
+            self._deregistered = True
 
             try:
                 await self._query.delete_producer(self._uuid)

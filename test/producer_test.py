@@ -242,6 +242,56 @@ class TestProducerShutdown:
 
         assert fetched.state == "completed"
 
+    @pytest.mark.oban(
+        queues={"default": 1}, refresher={"interval": 0.01}, shutdown_grace_period=5.0
+    )
+    async def test_staying_registered_while_waiting_for_jobs(self, oban_instance):
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        @worker()
+        class WaitingWorker:
+            async def process(self, job):
+                started.set()
+                await finish.wait()
+
+        oban = oban_instance()
+
+        await oban.start()
+        await oban.enqueue(WaitingWorker.new())
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        stopping = asyncio.create_task(oban.stop())
+
+        async def refreshed_at():
+            async with oban._connection() as conn:
+                result = await conn.execute(
+                    "SELECT updated_at FROM oban_producers WHERE meta ? 'shutdown_started_at'"
+                )
+                row = await result.fetchone()
+
+                assert row is not None
+
+                return row[0]
+
+        await with_backoff(refreshed_at)
+
+        draining = await refreshed_at()
+
+        async def assert_refreshed():
+            assert await refreshed_at() > draining
+
+        await with_backoff(assert_refreshed)
+
+        finish.set()
+
+        await stopping
+
+        async with oban._connection() as conn:
+            result = await conn.execute("SELECT uuid FROM oban_producers")
+
+            assert await result.fetchall() == []
+
     @pytest.mark.oban(queues={"default": 1}, shutdown_grace_period=0.05)
     async def test_cancelling_jobs_running_past_grace_period(self, oban_instance):
         started = asyncio.Event()
