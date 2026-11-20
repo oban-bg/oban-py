@@ -16,6 +16,8 @@ from oban._scheduler import (
 class TestExpressionParse:
     def test_parsing_simple_expressions(self):
         assert isinstance(Expression.parse("* * * * *"), Expression)
+        assert {5} == Expression.parse("  5 * * * *\n").minutes
+        assert {0} == Expression.parse(" @hourly ").minutes
 
         with pytest.raises(ValueError, match="incorrect number of fields"):
             Expression.parse("* * *")

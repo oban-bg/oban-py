@@ -262,9 +262,10 @@ class Expression:
             >>> Expression.parse("0 9-17 * * MON-FRI") # 9am-5pm on weekdays
             >>> Expression.parse("@hourly") # Every hour
         """
-        normalized = NICKNAMES.get(expression, expression)
+        trimmed = expression.strip()
+        normalized = NICKNAMES.get(trimmed, trimmed)
 
-        match re.split(r"\s+", normalized):
+        match normalized.split():
             case [min_part, hrs_part, day_part, mon_part, dow_part]:
                 mon_part = cls._replace_aliases(mon_part, MON_ALIASES)
                 dow_part = cls._replace_aliases(dow_part, DOW_ALIASES)
