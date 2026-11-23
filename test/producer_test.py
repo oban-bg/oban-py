@@ -292,9 +292,10 @@ class TestProducerShutdown:
 
             assert await result.fetchall() == []
 
-    @pytest.mark.oban(queues={"default": 1}, shutdown_grace_period=0.05)
+    @pytest.mark.oban(queues={"default": 3}, shutdown_grace_period=0.05)
     async def test_cancelling_jobs_running_past_grace_period(self, oban_instance):
-        started = asyncio.Event()
+        started = asyncio.Semaphore(0)
+        release = asyncio.Event()
         calls = []
 
         telemetry.attach(
@@ -306,24 +307,49 @@ class TestProducerShutdown:
         @worker()
         class EndlessWorker:
             async def process(self, job):
-                started.set()
+                started.release()
                 await asyncio.sleep(10)
+
+        @worker()
+        class FinishingWorker:
+            async def process(self, job):
+                started.release()
+
+                try:
+                    await asyncio.sleep(10)
+                except asyncio.CancelledError:
+                    pass
+
+        @worker()
+        class StubbornWorker:
+            async def process(self, job):
+                started.release()
+
+                try:
+                    await asyncio.sleep(10)
+                except asyncio.CancelledError:
+                    await release.wait()
 
         oban = oban_instance()
 
         async with oban:
-            job = await oban.enqueue(EndlessWorker.new())
+            endless = await oban.enqueue(EndlessWorker.new())
+            finished = await oban.enqueue(FinishingWorker.new())
+            stubborn = await oban.enqueue(StubbornWorker.new())
 
-            await asyncio.wait_for(started.wait(), timeout=1.0)
+            for _ in range(3):
+                await asyncio.wait_for(started.acquire(), timeout=1.0)
 
-        fetched = await oban.get_job(job.id)
+        release.set()
 
-        assert fetched.state == "executing"
+        assert (await oban.get_job(endless.id)).state == "executing"
+        assert (await oban.get_job(finished.id)).state == "completed"
+        assert (await oban.get_job(stubborn.id)).state == "executing"
 
         [meta] = calls
 
         assert meta["queue"] == "default"
-        assert meta["orphaned"] == [job.id]
+        assert meta["orphaned"] == [endless.id, stubborn.id]
         assert meta["duration"] > 0
 
 

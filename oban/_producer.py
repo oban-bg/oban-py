@@ -18,6 +18,8 @@ from .job import Job
 if TYPE_CHECKING:
     from ._query import Query
 
+CANCEL_TIMEOUT = 0.1
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,6 +170,7 @@ class Producer(Looper):
         self._last_fetch_time = 0.0
         self._loop_task = None
         self._notified = asyncio.Event()
+        self._orphaned = []
         self._pending_acks = []
         self._running_jobs = {}
         self._started_at = None
@@ -220,7 +223,6 @@ class Producer(Looper):
 
             running_tasks = [task for (_job, task) in self._running_jobs.values()]
             shutdown_started = time.monotonic_ns()
-            orphaned = []
 
             if running_tasks:
                 try:
@@ -234,13 +236,13 @@ class Producer(Looper):
                         "Failed to update producer %s during shutdown", self._uuid
                     )
 
-                orphaned = await self._drain_running()
+                await self._drain_running()
 
             telemetry.execute(
                 "oban.queue.shutdown",
                 {
                     "duration": time.monotonic_ns() - shutdown_started,
-                    "orphaned": orphaned,
+                    "orphaned": sorted([*self._orphaned, *self._running_jobs]),
                     "queue": self._queue,
                     "system_time": time.time_ns(),
                 },
@@ -373,21 +375,21 @@ class Producer(Looper):
 
         if not task.cancelled() and task.exception() is None and task.result():
             self._pending_acks.append(task.result())
+        else:
+            self._orphaned.append(job_id)
 
         self.notify()
 
-    async def _drain_running(self) -> list[int]:
-        running = list(self._running_jobs.values())
-        tasks = [task for (_job, task) in running]
+    async def _drain_running(self) -> None:
+        tasks = [task for (_job, task) in self._running_jobs.values()]
 
         if not tasks:
-            return []
+            return
 
-        # Completion callbacks registered in _produce run before wait returns, so acks for
-        # finished jobs are already pending by the time the caller acks them.
         _done, pending = await asyncio.wait(tasks, timeout=self._shutdown_grace_period)
 
         for task in pending:
             task.cancel()
 
-        return [job.id for (job, task) in running if task in pending]
+        if pending:
+            await asyncio.wait(pending, timeout=CANCEL_TIMEOUT)

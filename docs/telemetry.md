@@ -189,9 +189,9 @@ commits, so jobs from a transaction that later rolls back still appear in the ev
 ## Queue Shutdown
 
 Each queue emits `oban.queue.shutdown` as it stops, with the `queue`, the `duration` of the
-shutdown in nanoseconds, and the `orphaned` ids of jobs still running when the grace period ended.
-Orphaned jobs are left for the lifeline to rescue, and the logger reports any shutdown that orphans
-jobs as a warning.
+shutdown in nanoseconds, and the `orphaned` ids of jobs it left `executing` for the lifeline to
+rescue. A job that outlasts the grace period but still finishes and records its result isn't
+orphaned, so it isn't listed. The logger reports any shutdown that orphans jobs as a warning.
 
 ## Custom Spans
 
