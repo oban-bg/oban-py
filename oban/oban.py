@@ -939,12 +939,7 @@ class Oban:
             if producer:
                 await producer.pause()
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal", {"action": "pause", "queue": queue, "ident": ident}
-            )
+        await self._signal(node, {"action": "pause", "queue": queue})
 
     @_scoped
     async def resume_queue(self, queue: str, *, node: str | None = None) -> None:
@@ -969,12 +964,7 @@ class Oban:
             if producer:
                 await producer.resume()
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal", {"action": "resume", "queue": queue, "ident": ident}
-            )
+        await self._signal(node, {"action": "resume", "queue": queue})
 
     @_scoped
     async def pause_all_queues(self, *, node: str | None = None) -> None:
@@ -998,12 +988,7 @@ class Oban:
             for producer in self._producers.values():
                 await producer.pause()
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal", {"action": "pause", "queue": "*", "ident": ident}
-            )
+        await self._signal(node, {"action": "pause", "queue": "*"})
 
     @_scoped
     async def resume_all_queues(self, *, node: str | None = None) -> None:
@@ -1025,12 +1010,7 @@ class Oban:
             for producer in self._producers.values():
                 await producer.resume()
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal", {"action": "resume", "queue": "*", "ident": ident}
-            )
+        await self._signal(node, {"action": "resume", "queue": "*"})
 
     def check_queue(self, queue: str) -> QueueInfo | None:
         """Check the current state of a queue.
@@ -1118,20 +1098,16 @@ class Oban:
                 queue=queue, limit=limit, paused=paused, **extra
             )
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal",
-                {
-                    "action": "start",
-                    "queue": queue,
-                    "limit": limit,
-                    "paused": paused,
-                    "ident": ident,
-                    **extra,
-                },
-            )
+        await self._signal(
+            node,
+            {
+                "action": "start",
+                "queue": queue,
+                "limit": limit,
+                "paused": paused,
+                **extra,
+            },
+        )
 
     async def _start_queue_local(self, **params) -> None:
         queue = params["queue"]
@@ -1174,12 +1150,7 @@ class Oban:
         if not node or node == self._node:
             await self._stop_queue_local(queue)
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal", {"action": "stop", "queue": queue, "ident": ident}
-            )
+        await self._signal(node, {"action": "stop", "queue": queue})
 
     async def _stop_queue_local(self, queue: str) -> None:
         producer = self._producers.pop(queue, None)
@@ -1217,13 +1188,7 @@ class Oban:
         if not node or node == self._node:
             await self._scale_queue_local(queue, **kwargs)
 
-        if node != self._node:
-            ident = self._scope_signal(node)
-
-            await self._notifier.notify(
-                "signal",
-                {"action": "scale", "queue": queue, "ident": ident, **kwargs},
-            )
+        await self._signal(node, {"action": "scale", "queue": queue, **kwargs})
 
     @staticmethod
     def _extract_id(job: Job | int) -> int:
@@ -1241,11 +1206,13 @@ class Oban:
         if producer:
             await producer.scale(**kwargs)
 
-    def _scope_signal(self, node: str | None) -> str:
-        if node is not None:
-            return f"{self._name}.{node}"
-        else:
-            return "any"
+    async def _signal(self, node: str | None, payload: dict) -> None:
+        if node == self._node:
+            return
+
+        ident = "any" if node is None else f"{self._name}.{node}"
+
+        await self._notifier.notify("signal", {**payload, "ident": ident})
 
     async def _on_signal(self, _channel: str, payload: dict) -> None:
         # Every listener receives the same payload, so pop from a copy
