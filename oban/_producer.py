@@ -16,7 +16,6 @@ from ._looper import Looper, stop_gracefully
 from .job import Job
 
 if TYPE_CHECKING:
-    from ._notifier import Notifier
     from ._query import Query
 
 logger = logging.getLogger(__name__)
@@ -147,7 +146,6 @@ class Producer(Looper):
         queue: str = "default",
         name: str,
         node: str,
-        notifier: Notifier,
         query: Query,
         shutdown_grace_period: float | None = 15.0,
         **extra,
@@ -159,7 +157,6 @@ class Producer(Looper):
         self._limit = limit
         self._name = name
         self._node = node
-        self._notifier = notifier
         self._paused = paused
         self._query = query
         self._queue = queue
@@ -169,7 +166,6 @@ class Producer(Looper):
 
         self._init_lock = asyncio.Lock()
         self._last_fetch_time = 0.0
-        self._listen_token = None
         self._loop_task = None
         self._notified = asyncio.Event()
         self._pending_acks = []
@@ -196,8 +192,6 @@ class Producer(Looper):
                 meta=use_ext("producer.init", _init, self),
             )
 
-            self._listen_token = await self._notifier.listen("signal", self._on_signal)
-
             self._loop_task = asyncio.create_task(
                 self._loop(), name=f"oban-producer-{self._queue}"
             )
@@ -216,14 +210,13 @@ class Producer(Looper):
 
     async def stop(self) -> None:
         async with self._init_lock:
-            if not self._listen_token or not self._loop_task:
+            if not self._loop_task:
                 return
 
             # Let the loop finish any in-flight fetch so every dispatched job is awaited below
             self.notify()
 
             await stop_gracefully(self._loop_task, self._stopping)
-            await self._notifier.unlisten(self._listen_token)
 
             running_tasks = [task for (_job, task) in self._running_jobs.values()]
             shutdown_started = time.monotonic_ns()
@@ -270,6 +263,12 @@ class Producer(Looper):
 
     def notify(self) -> None:
         self._notified.set()
+
+    def cancel(self, job_id: int) -> None:
+        if job_id in self._running_jobs:
+            (job, _task) = self._running_jobs[job_id]
+
+            self._dispatcher.cancel(self, job)
 
     async def pause(self) -> None:
         meta = use_ext("producer.pause", _pause, self)
@@ -392,26 +391,3 @@ class Producer(Looper):
             task.cancel()
 
         return [job.id for (job, task) in running if task in pending]
-
-    async def _on_signal(self, _channel: str, payload: dict) -> None:
-        ident = payload.get("ident", "any")
-        queue = payload.get("queue", "*")
-
-        if queue != "*" and queue != self._queue:
-            return
-
-        if ident != "any" and ident != f"{self._name}.{self._node}":
-            return
-
-        match payload.get("action"):
-            case "pause":
-                await self.pause()
-            case "resume":
-                await self.resume()
-            case "pkill":
-                job_id = payload["job_id"]
-
-                if job_id in self._running_jobs:
-                    (job, _task) = self._running_jobs[job_id]
-
-                    self._dispatcher.cancel(self, job)

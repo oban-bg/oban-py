@@ -27,7 +27,7 @@ async def all_producers(conn):
 
 class TestProducerValidation:
     def validate(self, **opts):
-        base = {"name": "Oban", "node": "worker", "notifier": None, "query": None}
+        base = {"name": "Oban", "node": "worker", "query": None}
 
         Producer(**base, **opts)
 
@@ -329,7 +329,7 @@ class TestProducerShutdown:
 
 class TestProducerCancellation:
     async def test_loop_exits_when_cancellation_surfaces_as_another_error(self):
-        producer = Producer(name="Oban", node="worker", notifier=None, query=None)
+        producer = Producer(name="Oban", node="worker", query=None)
         producing = asyncio.Event()
 
         async def produce():
@@ -353,7 +353,7 @@ class TestProducerCancellation:
 
     async def test_debounce_skipped_without_running_jobs(self):
         producer = Producer(
-            debounce_interval=1.0, name="Oban", node="worker", notifier=None, query=None
+            debounce_interval=1.0, name="Oban", node="worker", query=None
         )
 
         producer._last_fetch_time = asyncio.get_running_loop().time()
@@ -382,14 +382,13 @@ class TestProducerCancellation:
             limit=1,
             name="Oban",
             node="worker",
-            notifier=None,
             query=None,
             queue="default",
         )
         job = Job(worker="Worker", id=1)
         producer._running_jobs[job.id] = (job, None)
 
-        await producer._on_signal("signal", {"action": "pkill", "job_id": job.id})
+        producer.cancel(job.id)
 
         assert dispatcher.cancelled == [(producer, job)]
 

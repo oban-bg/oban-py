@@ -131,7 +131,6 @@ class Oban:
                 query=self._query,
                 name=self._name,
                 node=self._node,
-                notifier=self._notifier,
                 queue=queue,
                 shutdown_grace_period=self._shutdown_grace_period,
                 **self._parse_queue_config(queue, config),
@@ -1145,7 +1144,6 @@ class Oban:
             query=self._query,
             name=self._name,
             node=self._node,
-            notifier=self._notifier,
             shutdown_grace_period=self._shutdown_grace_period,
             **params,
         )
@@ -1262,9 +1260,26 @@ class Oban:
         payload.pop("local_only", None)
 
         match payload.pop("action"):
+            case "pause":
+                for producer in self._signaled_producers(payload):
+                    await producer.pause()
+            case "resume":
+                for producer in self._signaled_producers(payload):
+                    await producer.resume()
+            case "pkill":
+                for producer in self._producers.values():
+                    producer.cancel(payload["job_id"])
             case "start":
                 await self._start_queue_local(**payload)
             case "stop":
                 await self._stop_queue_local(**payload)
             case "scale":
                 await self._scale_queue_local(**payload)
+
+    def _signaled_producers(self, payload: dict) -> list[Producer]:
+        queue = payload.get("queue", "*")
+
+        if queue == "*":
+            return list(self._producers.values())
+
+        return [self._producers[queue]] if queue in self._producers else []
