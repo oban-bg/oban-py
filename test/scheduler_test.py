@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from oban import job, worker
+from oban import job, telemetry, worker
 from oban._scheduler import (
     Expression,
     Scheduler,
@@ -288,9 +288,61 @@ class TestSchedulerEvaluate:
             async def process(self, job):
                 pass
 
+        events = []
+
+        telemetry.attach(
+            "test-scheduler",
+            ["oban.jobs.enqueue.start"],
+            lambda name, _meta: events.append(name),
+        )
+
         await scheduler._evaluate(TARGET)
 
+        telemetry.detach("test-scheduler")
+
+        assert events == []
         assert len(mock_query.enqueued_jobs) == 0
+
+    async def test_emits_enqueue_events_nested_in_the_evaluate_events(
+        self, scheduler, mock_query
+    ):
+        @worker(cron="* * * * *")
+        class CountedWorker:
+            async def process(self, job):
+                pass
+
+        events = []
+
+        telemetry.attach(
+            "test-scheduler",
+            [
+                "oban.jobs.enqueue.start",
+                "oban.jobs.enqueue.stop",
+                "oban.scheduler.evaluate.start",
+                "oban.scheduler.evaluate.stop",
+            ],
+            lambda name, meta: events.append((name, meta)),
+        )
+
+        await scheduler._evaluate(TARGET)
+
+        telemetry.detach("test-scheduler")
+
+        jobs = mock_query.enqueued_jobs
+        (evaluate_start, enqueue_start, enqueue_stop, evaluate_stop) = events
+
+        assert [name for (name, _meta) in events] == [
+            "oban.scheduler.evaluate.start",
+            "oban.jobs.enqueue.start",
+            "oban.jobs.enqueue.stop",
+            "oban.scheduler.evaluate.stop",
+        ]
+
+        assert evaluate_start[1]["cron_at"] == TARGET.isoformat()
+        assert enqueue_start[1]["jobs"] == jobs
+        assert enqueue_stop[1]["jobs"] == jobs
+        assert enqueue_stop[1]["count"] == 1
+        assert evaluate_stop[1]["count"] == 1
 
     async def test_enqueues_multiple_matching_jobs(self, scheduler, mock_query):
         @worker(queue="first", cron="* * * * *")

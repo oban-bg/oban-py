@@ -383,12 +383,20 @@ class Scheduler(Looper):
             collector.add({"count": len(jobs)})
 
             if jobs:
-                result = await self._query.insert_jobs(jobs)
+                result = await self._enqueue(jobs)
                 queues = {job.queue for job in result}
 
                 await self._notifier.notify(
                     "insert", [{"queue": queue} for queue in queues]
                 )
+
+    async def _enqueue(self, jobs: list[Job]) -> list[Job]:
+        with telemetry.span("oban.jobs.enqueue", {"jobs": jobs}) as collector:
+            result = await self._query.insert_jobs(jobs)
+
+            collector.add({"jobs": result, "count": len(result)})
+
+        return result
 
     def _is_now(self, entry: ScheduledEntry, target: datetime) -> bool:
         local = target.astimezone(entry.timezone or self._timezone)
