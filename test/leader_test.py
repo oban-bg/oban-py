@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 
@@ -83,6 +84,22 @@ class TestElection:
         await leader._election()
 
         assert leader.is_leader
+
+    async def test_logging_a_failed_election_once(self, leader, caplog):
+        leader._query.failing = True
+
+        loop = asyncio.create_task(leader._loop())
+
+        await leader._started.wait()
+
+        leader._stopping.set()
+
+        await loop
+
+        [record] = [rec for rec in caplog.records if rec.levelno >= logging.ERROR]
+
+        assert record.name == "oban"
+        assert "oban.leader.election.exception" in record.message
 
 
 class TestLeadership:

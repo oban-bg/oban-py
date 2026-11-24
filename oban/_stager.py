@@ -95,9 +95,9 @@ class Stager(Looper):
                 await self._stage()
             except asyncio.CancelledError:
                 break
-            except Exception as error:
-                logger.warning("Stager failed to stage jobs: %s", error, exc_info=True)
-
+            except Exception:
+                # Reported by the span's exception event, and producers fetch on their own
+                # instead
                 for producer in self._producers.values():
                     producer.notify()
 
@@ -116,7 +116,13 @@ class Stager(Looper):
         if not self._producers:
             return
 
-        await use_ext("stager.before_stage", self._noop, self._query)
+        try:
+            await use_ext("stager.before_stage", self._noop, self._query)
+        except Exception:
+            # The hook runs outside of the span, so nothing else reports its failures
+            logger.exception("Error before staging jobs")
+
+            raise
 
         with telemetry.span("oban.stager.stage", {}) as collector:
             queues = list(self._producers.keys())

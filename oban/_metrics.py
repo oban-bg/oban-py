@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import math
 import time
 from collections import defaultdict
@@ -20,7 +19,6 @@ if TYPE_CHECKING:
     from ._producer import Producer, QueueInfo
     from ._query import Query
 
-logger = logging.getLogger(__name__)
 
 # DDSketch with 2% relative error constants. This error rate matches what the `Sketch`
 # module in `oban_met` uses and must be kept in sync.
@@ -146,8 +144,9 @@ class Metrics(Looper):
                 await self.broadcast()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in metrics")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
 
     async def broadcast(self) -> None:
         with telemetry.span("oban.metrics.broadcast", {}):

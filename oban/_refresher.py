@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._looper import Looper
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._leader import Leader
@@ -82,8 +79,9 @@ class Refresher(Looper):
                 await self._cleanup()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in refresher")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
 
     async def _refresh(self) -> None:
         with telemetry.span("oban.refresher.refresh", {}) as collector:

@@ -365,8 +365,9 @@ class Scheduler(Looper):
                 await self._evaluate(target)
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in scheduler")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
 
     async def _evaluate(self, target: datetime) -> None:
         cron_at = target.isoformat()

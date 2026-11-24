@@ -317,8 +317,9 @@ class Producer(Looper):
                 await self._produce()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in producer for queue %s", self._queue)
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event, or logged where there isn't one
+                pass
 
     async def _debounce(self) -> None:
         now = asyncio.get_event_loop().time()
@@ -343,13 +344,19 @@ class Producer(Looper):
 
         jobs = await self._get_jobs()
 
-        for job in jobs:
-            task = self._dispatcher.dispatch(self, job)
-            task.add_done_callback(
-                lambda task, job_id=job.id: self._on_job_complete(job_id, task)
-            )
+        try:
+            for job in jobs:
+                task = self._dispatcher.dispatch(self, job)
+                task.add_done_callback(
+                    lambda task, job_id=job.id: self._on_job_complete(job_id, task)
+                )
 
-            self._running_jobs[job.id] = (job, task)
+                self._running_jobs[job.id] = (job, task)
+        except Exception:
+            # Dispatching happens outside of a span, so nothing else reports its failures
+            logger.exception("Error dispatching jobs for queue %s", self._queue)
+
+            raise
 
     async def _ack_jobs(self):
         with telemetry.span("oban.producer.ack", {"queue": self._queue}) as collector:

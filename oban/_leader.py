@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._looper import Looper, sleep_until_stopped, stop_gracefully
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._notifier import Notifier
@@ -104,8 +101,9 @@ class Leader(Looper):
                 await self._election()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in leader")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
             finally:
                 if not self._started.is_set():
                     self._started.set()

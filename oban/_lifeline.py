@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Any
 
 from . import telemetry
 from ._extensions import use_ext
 from ._looper import Looper, sleep_until_stopped, stop_gracefully
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._leader import Leader
@@ -75,8 +72,9 @@ class Lifeline(Looper):
                     await self._rescue()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in lifeline")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
 
     async def _rescue(self) -> None:
         if not self._leader.is_leader:

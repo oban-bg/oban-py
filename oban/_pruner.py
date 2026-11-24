@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import _period, telemetry
 from ._extensions import use_ext
 from ._looper import Looper, sleep_until_stopped, stop_gracefully
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ._leader import Leader
@@ -100,8 +97,9 @@ class Pruner(Looper):
                     await self._prune()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                logger.exception("Error in pruner")
+            except Exception:  # noqa: S110
+                # Reported by the span's exception event
+                pass
 
     async def _prune(self) -> None:
         await use_ext("pruner.prune", _prune, self._query, self._max_age, self._limit)
