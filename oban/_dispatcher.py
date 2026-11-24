@@ -6,13 +6,18 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from multiprocessing import Process, Queue
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from ._backoff import jittery_clamped
 from ._engine import run
 from ._executor import AckAction
-from ._serialization import deserialize_result, serialize_cancel, serialize_job
+from ._serialization import (
+    deserialize_result,
+    serialize_cancel,
+    serialize_job,
+    serialize_send,
+)
 
 if TYPE_CHECKING:
     from ._config import Config
@@ -117,7 +122,6 @@ class Dispatcher:
         engine = self._engines[self._next_engine % len(self._engines)]
         self._next_engine += 1
 
-        job._cancellation = asyncio.Event()
         self._pending[job.id] = Pending(
             future=future,
             job=job,
@@ -129,17 +133,20 @@ class Dispatcher:
         return asyncio.create_task(self._await_result(future))
 
     def cancel(self, _producer: Producer, job: Job) -> None:
-        job_id = job.id
+        if engine := self._engine_for(job):
+            engine.push_queue.put(serialize_cancel(engine.generation, job.id))
 
-        if job_id is None:
-            return
+    def send(self, _producer: Producer, job: Job, message: Any) -> None:
+        if engine := self._engine_for(job):
+            engine.push_queue.put(serialize_send(engine.generation, job.id, message))
 
-        pending = self._pending.get(job_id)
+    def _engine_for(self, job: Job) -> Engine | None:
+        pending = self._pending.get(job.id)
 
         if not pending:
-            return
+            return None
 
-        engine = next(
+        return next(
             (
                 engine
                 for engine in self._engines
@@ -148,9 +155,6 @@ class Dispatcher:
             ),
             None,
         )
-
-        if engine:
-            engine.push_queue.put(serialize_cancel(engine.generation, job_id))
 
     async def _await_result(self, future: asyncio.Future) -> AckAction | None:
         return await future

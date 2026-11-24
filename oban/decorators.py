@@ -17,7 +17,7 @@ from ._scheduler import register_scheduled
 from .job import Job, Result
 from .worker import Worker, register_worker, registered_workers, worker_name
 
-JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation"} | {
+JOB_FIELDS = set(Job.__slots__) - {"extra", "_cancellation", "_inbox"} | {
     "scheduled_in",
     "schedule_in",
     "unique",

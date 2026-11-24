@@ -28,6 +28,12 @@ class CancellableWorker:
 
 
 @worker()
+class InboxWorker:
+    async def process(self, job):
+        return Record(await job._inbox.get())
+
+
+@worker()
 class CrashWorker:
     async def process(self, job):
         os._exit(1)
@@ -88,6 +94,22 @@ class TestMultiProcess:
             following = await oban.enqueue(OkWorker.new())
 
             await assert_states(oban, [following], "completed")
+
+    async def test_sending_a_message_to_a_job_in_a_worker_process(self, oban_instance):
+        dispatcher = Dispatcher(num_processes=1)
+
+        async with oban_instance(queues={"default": 1}, dispatcher=dispatcher) as oban:
+            job = await oban.enqueue(InboxWorker.new())
+
+            await assert_states(oban, [job], "executing")
+
+            oban._producers["default"].send(job.id, {"hello": "world"})
+
+            await assert_states(oban, [job], "completed")
+
+            fetched = await oban.get_job(job.id)
+
+            assert decode_recorded(fetched.meta["return"]) == {"hello": "world"}
 
     async def test_recovering_from_a_crashed_worker_process(self, oban_instance):
         dispatcher = Dispatcher(num_processes=2)

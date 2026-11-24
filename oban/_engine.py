@@ -99,6 +99,7 @@ async def _loop(
             match deserialize_command(command_data):
                 case ("run", job):
                     job._cancellation = asyncio.Event()
+                    job._inbox = asyncio.Queue()
 
                     task = asyncio.create_task(_execute(job, push_queue, generation))
                     pending[job.id] = (job, task)
@@ -110,6 +111,11 @@ async def _loop(
                     if command_generation == generation and job_id in pending:
                         job, _task = pending[job_id]
                         job._cancellation.set()
+
+                case ("send", command_generation, job_id, message):
+                    if command_generation == generation and job_id in pending:
+                        job, _task = pending[job_id]
+                        job._inbox.put_nowait(message)
 
     finally:
         if pending:

@@ -38,6 +38,14 @@ def _init_noop(_oban: Oban) -> None:
     pass
 
 
+async def _start_noop(_oban: Oban) -> None:
+    pass
+
+
+async def _stop_noop(_oban: Oban) -> None:
+    pass
+
+
 def _default_node() -> str:
     # Leadership is tracked by node name, so the pid keeps processes on one host distinct.
     return f"{socket.gethostname()}.{os.getpid()}"
@@ -359,6 +367,7 @@ class Oban:
             self._refresher.start(),
             self._scheduler.start(),
             self._notifier.start(),
+            use_ext("oban.start", _start_noop, self),
         ]
 
         if self._dispatcher:
@@ -406,6 +415,7 @@ class Oban:
             return
 
         await self._notifier.unlisten(self._signal_token)
+        await use_ext("oban.stop", _stop_noop, self)
 
         tasks = [
             self._leader.stop(),

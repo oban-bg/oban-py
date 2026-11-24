@@ -152,6 +152,7 @@ class Job:
 
     __slots__ = (
         "_cancellation",
+        "_inbox",
         "args",
         "attempt",
         "attempted_at",
@@ -266,6 +267,7 @@ class Job:
         self.attempted_by = attempted_by if attempted_by is not None else []
         self.extra = extra if extra is not None else {}
         self._cancellation: asyncio.Event | None = None
+        self._inbox: asyncio.Queue | None = None
 
         if unique_opts := normalize_unique(unique):
             self.extra = {**self.extra, "unique": unique_opts}

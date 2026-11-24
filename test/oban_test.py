@@ -359,6 +359,42 @@ class TestInitExtension:
         assert "Refused" not in _instances
 
 
+class TestStartAndStopExtensions:
+    async def test_extensions_run_as_the_instance_starts_and_stops(
+        self, oban_instance, monkeypatch
+    ):
+        events = []
+
+        async def started(oban):
+            events.append(("start", oban))
+
+        async def stopped(oban):
+            events.append(("stop", oban))
+
+        monkeypatch.setitem(_extensions, "oban.start", started)
+        monkeypatch.setitem(_extensions, "oban.stop", stopped)
+
+        oban = oban_instance()
+
+        async with oban:
+            assert events == [("start", oban)]
+
+        assert events == [("start", oban), ("stop", oban)]
+
+    async def test_start_extension_can_listen_before_the_notifier_starts(
+        self, oban_instance, monkeypatch
+    ):
+        tokens = []
+
+        async def started(oban):
+            tokens.append(await oban._notifier.listen("custom", lambda *_args: None))
+
+        monkeypatch.setitem(_extensions, "oban.start", started)
+
+        async with oban_instance():
+            assert len(tokens) == 1
+
+
 class TestPauseAndResumeQueue:
     @pytest.mark.oban(queues={"default": 2})
     async def test_paused_queue_does_not_execute_new_jobs(self, oban_instance):

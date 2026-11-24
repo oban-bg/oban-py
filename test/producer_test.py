@@ -418,6 +418,27 @@ class TestProducerCancellation:
 
         assert dispatcher.cancelled == [(producer, job)]
 
+    async def test_delivers_messages_to_running_jobs(self, oban_instance):
+        received = asyncio.Future()
+
+        @worker()
+        class InboxWorker:
+            async def process(self, job):
+                received.set_result(await job._inbox.get())
+
+        async with oban_instance(queues={"default": 1}) as oban:
+            job = await oban.enqueue(InboxWorker.new())
+
+            await with_backoff(
+                lambda: job.id in oban._producers["default"]._running_jobs
+            )
+
+            # Messages for jobs that aren't running here are dropped
+            oban._producers["default"].send(job.id + 1, {"hello": "nobody"})
+            oban._producers["default"].send(job.id, {"hello": "world"})
+
+            assert await asyncio.wait_for(received, timeout=1.0) == {"hello": "world"}
+
     def test_local_dispatcher_sets_cancellation_event(self):
         job = Job(worker="Worker")
         job._cancellation = asyncio.Event()

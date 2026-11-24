@@ -84,8 +84,6 @@ async def _get_jobs(producer: Producer) -> list[Job]:
 
 
 async def _execute(job: Job) -> AckAction | None:
-    job._cancellation = asyncio.Event()
-
     executor = await Executor(job=job, safe=True).execute()
 
     return executor.action
@@ -98,14 +96,23 @@ class Dispatcher(Protocol):
 
     def cancel(self, producer: Producer, job: Job) -> None: ...
 
+    def send(self, producer: Producer, job: Job, message: Any) -> None: ...
+
 
 class LocalDispatcher:
     def dispatch(self, _producer: Producer, job: Job) -> asyncio.Task[AckAction | None]:
+        job._cancellation = asyncio.Event()
+        job._inbox = asyncio.Queue()
+
         return asyncio.create_task(_execute(job))
 
     def cancel(self, producer: Producer, job: Job) -> None:
         if job._cancellation:
             job._cancellation.set()
+
+    def send(self, producer: Producer, job: Job, message: Any) -> None:
+        if job._inbox:
+            job._inbox.put_nowait(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +278,12 @@ class Producer(Looper):
             (job, _task) = self._running_jobs[job_id]
 
             self._dispatcher.cancel(self, job)
+
+    def send(self, job_id: int, message: Any) -> None:
+        if job_id in self._running_jobs:
+            (job, _task) = self._running_jobs[job_id]
+
+            self._dispatcher.send(self, job, message)
 
     async def pause(self) -> None:
         meta = use_ext("producer.pause", _pause, self)
