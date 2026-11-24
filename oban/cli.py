@@ -26,7 +26,6 @@ from oban.schema import (
 from oban.schema import (
     uninstall as uninstall_schema,
 )
-from oban.telemetry import logger as telemetry_logger
 
 try:
     from uvloop import run as asyncio_run
@@ -463,7 +462,6 @@ def _start(
         if conf.processes:
             logger.info(f"Executing jobs across {conf.processes} worker processes")
 
-        telemetry_logger.attach()
         shutdown_event = handle_signals()
 
         try:
@@ -477,7 +475,6 @@ def _start(
             logger.exception("Error during operation")
             sys.exit(1)
         finally:
-            telemetry_logger.detach()
             await pool.close()
             logger.info("Shutdown complete")
 

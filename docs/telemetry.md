@@ -7,37 +7,46 @@ in the same kind of events.
 
 ## Logging
 
-The built-in logger handles Oban's events and writes each one as JSON through Python's `logging`
-module. The CLI attaches it automatically. When running embedded, attach it when your application
-starts:
-
-```python
-from oban.telemetry import logger as telemetry_logger
-
-telemetry_logger.attach()
-```
-
-By default, it logs every job's start, stop, and exception at the `INFO` level, background work at
-`DEBUG` when it succeeds and `ERROR` when it fails, and queue shutdowns that orphan jobs at
-`WARNING`. Job events include the job's id, worker, queue, attempt, args, meta, and tags, along
-with its final state and timings once it finishes.
-
-Logs are written to the `oban` logger unless given another one. Choose the level for job events
-with `level`:
+Oban writes each of its telemetry events as JSON to the `oban` logger, through Python's `logging`
+module. There's nothing to attach. As with any library, your application's logging configuration
+decides what's shown and where it goes:
 
 ```python
 import logging
 
-telemetry_logger.attach(level=logging.DEBUG, logger=logging.getLogger("myapp.oban"))
+logging.basicConfig(level=logging.INFO)
 ```
 
-Pass `events` to log only some events, such as just job exceptions:
+Every event has a fixed level:
+
+| Level     | Events                                                            |
+| --------- | ----------------------------------------------------------------- |
+| `INFO`    | Each job's start, stop, and exception                             |
+| `WARNING` | Queue shutdowns that orphan jobs                                  |
+| `ERROR`   | Failures of job operations and background work                    |
+| `DEBUG`   | Everything else, such as each staging pass or successful enqueue  |
+
+Job events include the job's id, worker, queue, attempt, args, meta, and tags, along with its final
+state and timings once it finishes. Span start events aren't logged, other than a job's start,
+because the stop or exception that follows says the same thing with a duration.
+
+Without any configuration, Python only shows warnings and errors, so job events stay hidden until
+the level is lowered. Set a level on the `oban` logger itself to see more or less from Oban than
+from the rest of your application:
 
 ```python
-telemetry_logger.attach(events=["oban.job.exception"])
+logging.getLogger("oban").setLevel(logging.DEBUG)
 ```
 
-Use `telemetry_logger.detach()` to stop logging.
+Events below the logger's level are skipped before they're formatted. To log a subset of events,
+or in another format, attach a handler of your own instead.
+
+The CLI configures logging for you, at the level given by `--log-level`.
+
+```{note}
+Earlier versions required calling `oban.telemetry.logger.attach()`. That function, and `detach()`,
+are deprecated and no longer do anything. They'll be removed in v1.0.
+```
 
 ## Custom Handlers
 

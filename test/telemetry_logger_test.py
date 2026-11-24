@@ -25,15 +25,11 @@ class TestLoggerHandler:
     async def test_logs_start_and_stop_events_for_successful_job(self, caplog):
         caplog.set_level(logging.DEBUG, logger="oban")
 
-        logger.attach()
-
         job = SuccessWorker.new(
             scheduled_at=datetime.now(UTC) - timedelta(seconds=2),
             attempted_at=datetime.now(UTC),
         )
         await process_job(job)
-
-        logger.detach()
 
         records = [rec for rec in caplog.records if rec.name == "oban"]
         assert len(records) == 2
@@ -56,8 +52,6 @@ class TestLoggerHandler:
     async def test_logs_start_and_exception_events_for_failed_job(self, caplog):
         caplog.set_level(logging.DEBUG, logger="oban")
 
-        logger.attach()
-
         job = FailureWorker.new(
             scheduled_at=datetime.now(UTC) - timedelta(seconds=1),
             attempted_at=datetime.now(UTC),
@@ -66,13 +60,12 @@ class TestLoggerHandler:
         with pytest.raises(ValueError):
             await process_job(job)
 
-        logger.detach()
-
         records = [rec for rec in caplog.records if rec.name == "oban"]
         assert len(records) == 2
 
         error_data = json.loads(records[1].message)
 
+        assert records[1].levelno == logging.INFO
         assert error_data["event"] == "oban.job.exception"
         assert error_data["id"] == job.id
         assert error_data["state"] == "retryable"
@@ -84,14 +77,10 @@ class TestLoggerHandler:
     def test_logs_shutdown_events_with_orphaned_jobs(self, caplog):
         caplog.set_level(logging.DEBUG, logger="oban")
 
-        logger.attach()
-
         meta = {"duration": 15_000_000_000, "queue": "default"}
 
         telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": []})
         telemetry.execute("oban.queue.shutdown", {**meta, "orphaned": [1, 2]})
-
-        logger.detach()
 
         [record] = [rec for rec in caplog.records if rec.name == "oban"]
         data = json.loads(record.message)
@@ -101,34 +90,72 @@ class TestLoggerHandler:
         assert data["duration"] == 15_000
         assert data["orphaned"] == [1, 2]
 
-    def test_logs_span_starts_without_a_duration(self, caplog):
+    def test_logs_background_work_once_it_stops_and_its_failures_as_errors(
+        self, caplog
+    ):
         caplog.set_level(logging.DEBUG, logger="oban")
 
-        logger.attach(events=["oban.pruner.prune.start", "oban.jobs.cancel.start"])
-
         telemetry.execute("oban.pruner.prune.start", {"system_time": 1})
-        telemetry.execute("oban.jobs.cancel.start", {"job_ids": [1], "system_time": 1})
-
-        logger.detach()
+        telemetry.execute(
+            "oban.pruner.prune.stop",
+            {"count": 5, "duration": 1_234_000, "system_time": 1},
+        )
+        telemetry.execute(
+            "oban.stager.stage.exception",
+            {
+                "duration": 1_234_000,
+                "error_message": "connection lost",
+                "error_type": "OperationalError",
+                "system_time": 1,
+            },
+        )
 
         records = [rec for rec in caplog.records if rec.name == "oban"]
 
-        assert [json.loads(rec.message) for rec in records] == [
-            {"event": "oban.pruner.prune.start"},
-            {"event": "oban.jobs.cancel.start", "job_ids": [1]},
+        assert [(rec.levelno, json.loads(rec.message)) for rec in records] == [
+            (
+                logging.DEBUG,
+                {"count": 5, "duration": 1.23, "event": "oban.pruner.prune.stop"},
+            ),
+            (
+                logging.ERROR,
+                {
+                    "duration": 1.23,
+                    "error_message": "connection lost",
+                    "error_type": "OperationalError",
+                    "event": "oban.stager.stage.exception",
+                },
+            ),
         ]
+
+    def test_skips_events_below_the_logger_level(self, caplog):
+        caplog.set_level(logging.INFO, logger="oban")
+
+        # Formatting this event without its count or jobs would fail, and be logged as an error
+        telemetry.execute("oban.jobs.retry.stop", {"duration": 1_000_000})
+
+        assert caplog.records == []
+
+    def test_attach_and_detach_are_deprecated_and_do_nothing(self, caplog):
+        caplog.set_level(logging.DEBUG, logger="oban")
+
+        with pytest.warns(DeprecationWarning, match="attach"):
+            logger.attach(level=logging.DEBUG, events=["oban.job.start"])
+
+        with pytest.warns(DeprecationWarning, match="detach"):
+            logger.detach()
+
+        telemetry.execute("oban.pruner.prune.stop", {"count": 1, "duration": 1})
+
+        assert len([rec for rec in caplog.records if rec.name == "oban"]) == 1
 
     async def test_logs_job_operation_events(self, caplog, oban_instance):
         caplog.set_level(logging.DEBUG, logger="oban")
-
-        logger.attach()
 
         async with oban_instance() as oban:
             job = await SuccessWorker.enqueue(state="completed")
 
             await oban.retry_many_jobs([job.id, 99999])
-
-        logger.detach()
 
         [record] = [rec for rec in caplog.records if "oban.jobs.retry" in rec.message]
         data = json.loads(record.message)

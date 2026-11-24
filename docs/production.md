@@ -37,19 +37,20 @@ configure a few things manually.
 
 ### Enable Logging
 
-Attach the telemetry logger during application startup:
+Oban always logs its events as JSON to the `oban` logger, so there's nothing to attach. Configure
+Python's logging during application startup to see them:
 
 ```python
-from oban.telemetry import logger as telemetry_logger
+import logging
 
-telemetry_logger.attach()
+logging.basicConfig(level=logging.INFO)
 ```
 
-The logger emits JSON-encoded structured logs at the `INFO` level by default. You can customize
-the log level:
+Job events are logged at `INFO`, failures at `ERROR`, and routine background work at `DEBUG`. Set
+a level on the `oban` logger to see more or less from Oban alone:
 
 ```python
-telemetry_logger.attach(level=logging.DEBUG)
+logging.getLogger("oban").setLevel(logging.DEBUG)
 ```
 
 ### Configure Job Maintenance

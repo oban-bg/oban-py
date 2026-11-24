@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import Any
 
 import orjson
@@ -25,21 +26,19 @@ JOB_FIELDS = [
 
 
 class _LoggerHandler:
-    def __init__(
-        self,
-        *,
-        level: int,
-        logger: logging.Logger | None = None,
-    ):
-        self.level = level
-        self.logger = logger or logging.getLogger("oban")
+    def __init__(self):
+        self.logger = logging.getLogger("oban")
 
     def _handle_event(self, name: str, meta: dict[str, Any]) -> None:
         if name == "oban.queue.shutdown" and not meta["orphaned"]:
             return
 
-        data = self._format_event(name, meta)
         level = self._get_level(name)
+
+        if not self.logger.isEnabledFor(level):
+            return
+
+        data = self._format_event(name, meta)
         message = orjson.dumps(data).decode()
 
         self.logger.log(level, message)
@@ -118,7 +117,7 @@ class _LoggerHandler:
 
     def _get_level(self, name: str) -> int:
         if name.startswith("oban.job."):
-            return self.level
+            return logging.INFO
         elif name == "oban.queue.shutdown":
             return logging.WARNING
         elif name.endswith(".exception"):
@@ -130,43 +129,31 @@ class _LoggerHandler:
         return round(value / 1_000_000, 2)
 
 
-def attach(
-    *,
-    level: int = logging.INFO,
-    logger: logging.Logger | None = None,
-    events: list[str] | None = None,
-) -> None:
-    """Attach a logger handler to telemetry events.
+def attach(**_opts) -> None:
+    """Deprecated, and does nothing. Events are always logged to the `oban` logger.
 
-    Emits structured logs for Oban telemetry events using Python's standard
-    logging module.
-
-    Args:
-        level: Logging level for job events (default: INFO). Other events are logged at
-            DEBUG, or ERROR for exceptions, and queue shutdowns that orphan jobs at WARNING.
-        logger: Custom logger instance (default: logging.getLogger("oban"))
-        events: Specific events to log (default: every event except span starts, other than
-            oban.job.start)
-
-    Example:
-        >>> import logging
-        >>>
-        >>> # Configure Python logging
-        >>> logging.basicConfig(level=logging.INFO)
-        >>>
-        >>> # Attach logger to telemetry events
-        >>> oban.telemetry.logger.attach()
+    Configure what's shown through Python's `logging` instead, such as with
+    `logging.getLogger("oban").setLevel(logging.DEBUG)`. Will be removed in v1.0.
     """
-    handler = _LoggerHandler(level=level, logger=logger)
-    events = events or EVENTS
-
-    core.attach("oban-logger", events, handler._handle_event)
+    warnings.warn(
+        "oban.telemetry.logger.attach() is deprecated and does nothing, events are always "
+        "logged to the 'oban' logger",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def detach() -> None:
-    """Detach the logger handler from telemetry events.
+    """Deprecated, and does nothing. Silence the `oban` logger through `logging` instead.
 
-    Example:
-        >>> oban.telemetry.logger.detach()
+    Will be removed in v1.0.
     """
-    core.detach("oban-logger")
+    warnings.warn(
+        "oban.telemetry.logger.detach() is deprecated and does nothing, configure the 'oban' "
+        "logger instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+
+core.attach("oban-logger", EVENTS, _LoggerHandler()._handle_event)
