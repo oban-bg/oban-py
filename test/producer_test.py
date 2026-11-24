@@ -4,7 +4,7 @@ import pytest
 
 from oban import Cancel, Job, telemetry, worker
 from oban._extensions import _extensions, put_ext
-from oban._producer import LocalDispatcher, Producer, _get_jobs
+from oban._producer import Producer, _get_jobs
 
 from .helpers import with_backoff
 
@@ -391,32 +391,35 @@ class TestProducerCancellation:
         with pytest.raises(TimeoutError):
             await asyncio.wait_for(producer._debounce(), timeout=0.05)
 
-    async def test_delegates_cancellation_to_dispatcher(self):
-        class TestDispatcher:
-            def __init__(self):
-                self.cancelled = []
+    async def test_cancels_running_jobs(self, oban_instance):
+        started = asyncio.Event()
+        cancelled = asyncio.Event()
 
-            def dispatch(self, producer, job):
-                raise NotImplementedError
+        @worker()
+        class CancellableWorker:
+            async def process(self, job):
+                started.set()
 
-            def cancel(self, producer, job):
-                self.cancelled.append((producer, job))
+                while not job.cancelled():
+                    await asyncio.sleep(0.01)
 
-        dispatcher = TestDispatcher()
-        producer = Producer(
-            dispatcher=dispatcher,
-            limit=1,
-            name="Oban",
-            node="worker",
-            query=None,
-            queue="default",
-        )
-        job = Job(worker="Worker", id=1)
-        producer._running_jobs[job.id] = (job, None)
+                cancelled.set()
 
-        producer.cancel(job.id)
+        async with oban_instance(queues={"default": 1}) as oban:
+            job = await oban.enqueue(CancellableWorker.new())
 
-        assert dispatcher.cancelled == [(producer, job)]
+            await asyncio.wait_for(started.wait(), timeout=1.0)
+
+            # Cancelling a job that isn't running here leaves the others alone
+            oban._producers["default"].cancel(job.id + 1)
+
+            await asyncio.sleep(0.05)
+
+            assert not cancelled.is_set()
+
+            oban._producers["default"].cancel(job.id)
+
+            await asyncio.wait_for(cancelled.wait(), timeout=1.0)
 
     async def test_delivers_messages_to_running_jobs(self, oban_instance):
         received = asyncio.Future()
@@ -438,11 +441,3 @@ class TestProducerCancellation:
             oban._producers["default"].send(job.id, {"hello": "world"})
 
             assert await asyncio.wait_for(received, timeout=1.0) == {"hello": "world"}
-
-    def test_local_dispatcher_sets_cancellation_event(self):
-        job = Job(worker="Worker")
-        job._cancellation = asyncio.Event()
-
-        LocalDispatcher().cancel(None, job)
-
-        assert job.cancelled()
