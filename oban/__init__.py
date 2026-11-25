@@ -7,7 +7,7 @@ from .oban import Oban
 from .worker import Worker
 
 try:
-    import oban_pro  # noqa: F401  # ty: ignore[unresolved-import]
+    import oban_pro  # noqa: F401  # ty: ignore[import-not-found]
 except ImportError:
     pass
 
